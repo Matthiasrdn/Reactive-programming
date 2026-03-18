@@ -96,4 +96,54 @@ public class OffworldProperties {
     public void setMarket(Market market) {
         this.market = market;
     }
+
+    private Trading trading = new Trading();
+
+    public static class Trading {
+
+        private boolean enabled = true;
+        private String stationPlanetId = "Sol-3";
+        private int defaultQuantity = 10;
+        private int minSpread = 5;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getStationPlanetId() {
+            return stationPlanetId;
+        }
+
+        public void setStationPlanetId(String stationPlanetId) {
+            this.stationPlanetId = stationPlanetId;
+        }
+
+        public int getDefaultQuantity() {
+            return defaultQuantity;
+        }
+
+        public void setDefaultQuantity(int defaultQuantity) {
+            this.defaultQuantity = defaultQuantity;
+        }
+
+        public int getMinSpread() {
+            return minSpread;
+        }
+
+        public void setMinSpread(int minSpread) {
+            this.minSpread = minSpread;
+        }
+    }
+
+    public Trading getTrading() {
+        return trading;
+    }
+
+    public void setTrading(Trading trading) {
+        this.trading = trading;
+    }
 }

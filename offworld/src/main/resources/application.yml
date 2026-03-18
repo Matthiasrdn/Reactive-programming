@@ -11,3 +11,8 @@ offworld:
     construction-interval: 10s
   market:
     enabled: true
+  trading:
+    enabled: true
+    station-planet-id: "Sol-3"
+    default-quantity: 10
+    min-spread: 5
