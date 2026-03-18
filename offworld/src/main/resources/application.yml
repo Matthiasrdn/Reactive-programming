@@ -1,0 +1,13 @@
+server:
+  port: 8081
+
+offworld:
+  base-url: "http://localhost:8080"
+  player-id: "your-player-id"
+  api-key: "your-api-key"
+  callback-url: "http://localhost:8081/webhooks"
+  polling:
+    ship-interval: 5s
+    construction-interval: 10s
+  market:
+    enabled: true
