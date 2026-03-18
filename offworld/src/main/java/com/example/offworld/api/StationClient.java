@@ -16,9 +16,9 @@ public class StationClient {
         this.webClient = webClient;
     }
 
-    public Mono<StationDto> getStation(String planetId) {
+    public Mono<StationDto> getStation(String systemName, String planetId) {
         return webClient.get()
-                .uri("/stations/{planetId}", planetId)
+                .uri("/settlements/{systemName}/{planetId}/station", systemName, planetId)
                 .retrieve()
                 .bodyToMono(StationDto.class);
     }

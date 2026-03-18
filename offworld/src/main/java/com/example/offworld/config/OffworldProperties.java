@@ -146,4 +146,72 @@ public class OffworldProperties {
     public void setTrading(Trading trading) {
         this.trading = trading;
     }
+
+    private Logistics logistics = new Logistics();
+
+    public static class Logistics {
+
+        private boolean enabled = true;
+        private String originSystemName = "Sol";
+        private String originPlanetId = "Sol-3";
+        private String destinationPlanetId = "Proxima Centauri-1";
+        private String goodName = "iron_ore";
+        private int quantity = 20;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getOriginSystemName() {
+            return originSystemName;
+        }
+
+        public void setOriginSystemName(String originSystemName) {
+            this.originSystemName = originSystemName;
+        }
+
+        public String getOriginPlanetId() {
+            return originPlanetId;
+        }
+
+        public void setOriginPlanetId(String originPlanetId) {
+            this.originPlanetId = originPlanetId;
+        }
+
+        public String getDestinationPlanetId() {
+            return destinationPlanetId;
+        }
+
+        public void setDestinationPlanetId(String destinationPlanetId) {
+            this.destinationPlanetId = destinationPlanetId;
+        }
+
+        public String getGoodName() {
+            return goodName;
+        }
+
+        public void setGoodName(String goodName) {
+            this.goodName = goodName;
+        }
+
+        public int getQuantity() {
+            return quantity;
+        }
+
+        public void setQuantity(int quantity) {
+            this.quantity = quantity;
+        }
+    }
+
+    public Logistics getLogistics() {
+        return logistics;
+    }
+
+    public void setLogistics(Logistics logistics) {
+        this.logistics = logistics;
+    }
 }

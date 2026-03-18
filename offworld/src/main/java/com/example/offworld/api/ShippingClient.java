@@ -1,11 +1,14 @@
 package com.example.offworld.api;
 
-import com.example.offworld.dto.shipping.AuthorizationRequest;
-import com.example.offworld.dto.shipping.ShipDto;
 import java.util.List;
+
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+
+import com.example.offworld.dto.shipping.AuthorizationRequest;
+import com.example.offworld.dto.shipping.ShipDto;
+
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -46,6 +49,18 @@ public class ShippingClient {
         return webClient.put()
                 .uri("/ships/{id}/undock", shipId)
                 .bodyValue(new AuthorizationRequest(true))
+                .retrieve()
+                .bodyToMono(ShipDto.class);
+    }
+
+    public Mono<ShipDto> createTrucking(String originPlanetId, String destinationPlanetId, java.util.Map<String, Integer> cargo) {
+        return webClient.post()
+                .uri("/trucking")
+                .bodyValue(new com.example.offworld.dto.shipping.CreateTruckingRequest(
+                        originPlanetId,
+                        destinationPlanetId,
+                        cargo
+                ))
                 .retrieve()
                 .bodyToMono(ShipDto.class);
     }

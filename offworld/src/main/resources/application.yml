@@ -16,3 +16,10 @@ offworld:
     station-planet-id: "Sol-3"
     default-quantity: 10
     min-spread: 5
+  logistics:
+    enabled: true
+    origin-system-name: "Sol"
+    origin-planet-id: "Sol-3"
+    destination-planet-id: "Proxima Centauri-1"
+    good-name: "iron_ore"
+    quantity: 20

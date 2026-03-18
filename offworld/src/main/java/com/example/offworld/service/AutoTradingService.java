@@ -84,7 +84,7 @@ public class AutoTradingService {
         return Mono.zip(
                 marketClient.getPrices(),
                 playerClient.getPlayer(props.getPlayerId()),
-                stationClient.getStation(stationPlanetId)
+                stationClient.getStation(props.getLogistics().getOriginSystemName(), stationPlanetId)
         ).flatMap(tuple -> {
 
             var prices = tuple.getT1();
@@ -92,7 +92,7 @@ public class AutoTradingService {
             var station = tuple.getT3();
 
             int credits = player.credits();
-            int stock = station.storage().getOrDefault(goodName, 0);
+            int stock = station.inventory().getOrDefault(goodName, 0);
 
             log.info("CHECK {} -> credits={}, stock={}", goodName, credits, stock);
 
