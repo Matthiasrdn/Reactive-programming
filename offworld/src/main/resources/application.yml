@@ -23,3 +23,7 @@ offworld:
     destination-planet-id: "Proxima Centauri-1"
     good-name: "iron_ore"
     quantity: 20
+  order-management:
+    enabled: true
+    max-open-orders-per-good: 2
+    cancel-after-seconds: 120

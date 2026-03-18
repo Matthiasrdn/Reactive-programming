@@ -102,11 +102,17 @@ public class AutoTradingService {
                 int cost = buyPrice * quantity;
 
                 if (credits >= cost) {
-                    return marketClient.createLimitBuyOrder(goodName, buyPrice, quantity, stationPlanetId)
-                            .doOnSuccess(order -> log.info("BUY {} @ {}", goodName, buyPrice))
-                            .then();
-                } else {
-                    log.info("Pas assez de crédits pour BUY {}", goodName);
+                    return hasOpenOrder(goodName, "buy")
+                            .flatMap(hasOrder -> {
+                                if (hasOrder) {
+                                    log.info("BUY ignoré, ordre déjà ouvert pour {}", goodName);
+                                    return Mono.empty();
+                                }
+
+                                return marketClient.createLimitBuyOrder(goodName, buyPrice, quantity, stationPlanetId)
+                                        .doOnSuccess(order -> log.info("BUY {} @ {}", goodName, buyPrice))
+                                        .then();
+                            });
                 }
             }
 
@@ -121,5 +127,16 @@ public class AutoTradingService {
 
             return Mono.empty();
         });
+    }
+
+    private Mono<Boolean> hasOpenOrder(String goodName, String side) {
+        return marketClient.getMyOrders()
+                .filter(order -> goodName.equals(order.goodName()))
+                .filter(order -> side.equalsIgnoreCase(order.side()))
+                .filter(order -> order.status() != null
+                && (order.status().equalsIgnoreCase("open")
+                || order.status().equalsIgnoreCase("partial")
+                || order.status().equalsIgnoreCase("partially_filled")))
+                .hasElements();
     }
 }

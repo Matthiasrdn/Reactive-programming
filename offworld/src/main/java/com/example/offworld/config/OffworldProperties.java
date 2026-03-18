@@ -214,4 +214,45 @@ public class OffworldProperties {
     public void setLogistics(Logistics logistics) {
         this.logistics = logistics;
     }
+
+    private OrderManagement orderManagement = new OrderManagement();
+
+    public static class OrderManagement {
+
+        private boolean enabled = true;
+        private int maxOpenOrdersPerGood = 2;
+        private long cancelAfterSeconds = 120;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public int getMaxOpenOrdersPerGood() {
+            return maxOpenOrdersPerGood;
+        }
+
+        public void setMaxOpenOrdersPerGood(int maxOpenOrdersPerGood) {
+            this.maxOpenOrdersPerGood = maxOpenOrdersPerGood;
+        }
+
+        public long getCancelAfterSeconds() {
+            return cancelAfterSeconds;
+        }
+
+        public void setCancelAfterSeconds(long cancelAfterSeconds) {
+            this.cancelAfterSeconds = cancelAfterSeconds;
+        }
+    }
+
+    public OrderManagement getOrderManagement() {
+        return orderManagement;
+    }
+
+    public void setOrderManagement(OrderManagement orderManagement) {
+        this.orderManagement = orderManagement;
+    }
 }

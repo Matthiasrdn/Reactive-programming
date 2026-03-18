@@ -76,4 +76,18 @@ public class MarketClient {
                 .retrieve()
                 .bodyToMono(MarketOrderDto.class);
     }
+
+    public Flux<MarketOrderDto> getMyOrders() {
+        return webClient.get()
+                .uri("/market/orders")
+                .retrieve()
+                .bodyToFlux(MarketOrderDto.class);
+    }
+
+    public Mono<Void> cancelOrder(String orderId) {
+        return webClient.delete()
+                .uri("/market/orders/{id}", orderId)
+                .retrieve()
+                .bodyToMono(Void.class);
+    }
 }
