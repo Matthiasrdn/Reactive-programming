@@ -3,6 +3,7 @@ package com.example.offworld.api;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import com.example.offworld.dto.player.PlayerDto;
 import com.example.offworld.dto.player.UpdatePlayerRequest;
 
 import reactor.core.publisher.Mono;
@@ -22,5 +23,12 @@ public class PlayerClient {
                 .bodyValue(new UpdatePlayerRequest(callbackUrl))
                 .retrieve()
                 .bodyToMono(Void.class);
+    }
+
+    public Mono<PlayerDto> getPlayer(String playerId) {
+        return webClient.get()
+                .uri("/players/{id}", playerId)
+                .retrieve()
+                .bodyToMono(PlayerDto.class);
     }
 }
