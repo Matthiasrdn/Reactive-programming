@@ -25,35 +25,57 @@ public class LogisticsService {
     private final ShippingClient shippingClient;
     private final StationClient stationClient;
     private final OffworldProperties props;
+    private final DebugStateService debugStateService;
+    private final DebugShipService debugShipService;
 
     private final AtomicBoolean truckingInFlight = new AtomicBoolean(false);
 
     public LogisticsService(
             ShippingClient shippingClient,
             StationClient stationClient,
-            OffworldProperties props
+            OffworldProperties props,
+            DebugStateService debugStateService,
+            DebugShipService debugShipService
     ) {
         this.shippingClient = shippingClient;
         this.stationClient = stationClient;
         this.props = props;
+        this.debugStateService = debugStateService;
+        this.debugShipService = debugShipService;
     }
 
     @PostConstruct
     public void start() {
         if (!props.getLogistics().isEnabled()) {
+            debugStateService.recordLogisticsAction("Logistics désactivé");
             log.info("Logistics désactivé");
             return;
         }
 
-        Flux.interval(Duration.ofSeconds(20))
+        debugStateService.recordLogisticsAction("Logistics démarré");
+        log.info("Logistics démarré");
+
+        Flux.interval(Duration.ofSeconds(15))
+                .doOnNext(tick
+                        -> debugStateService.recordLogisticsAction("Tick logistics → vérification")
+                )
                 .flatMap(tick -> maybeLaunchTrucking())
-                .onErrorContinue((error, value)
-                        -> log.warn("Erreur logistics: {}", error.getMessage()))
+                .onErrorContinue((error, value) -> {
+                    String msg = "Erreur logistics: " + error.getMessage();
+                    debugStateService.recordLogisticsAction(msg);
+                    log.warn(msg);
+                })
                 .subscribe();
+    }
+
+    public Mono<Void> forceLaunchNow() {
+        debugStateService.recordLogisticsAction("Lancement manuel demandé");
+        return maybeLaunchTrucking();
     }
 
     private Mono<Void> maybeLaunchTrucking() {
         if (!truckingInFlight.compareAndSet(false, true)) {
+            debugStateService.recordLogisticsAction("Trucking déjà en cours");
             return Mono.empty();
         }
 
@@ -63,9 +85,17 @@ public class LogisticsService {
         String goodName = props.getLogistics().getGoodName();
         int quantity = props.getLogistics().getQuantity();
 
+        debugStateService.recordLogisticsAction(
+                "Lecture station " + originPlanetId + " pour " + goodName
+        );
+
         return stationClient.getStation(systemName, originPlanetId)
                 .flatMap(station -> launchIfEnoughStock(
-                station, originPlanetId, destinationPlanetId, goodName, quantity
+                station,
+                originPlanetId,
+                destinationPlanetId,
+                goodName,
+                quantity
         ))
                 .doFinally(signal -> truckingInFlight.set(false))
                 .then();
@@ -81,23 +111,33 @@ public class LogisticsService {
         int stock = station.inventory().getOrDefault(goodName, 0);
 
         if (stock < quantity) {
-            log.info("Stock insuffisant pour trucking {}: have={}, need={}", goodName, stock, quantity);
+            String msg = "Stock insuffisant pour " + goodName
+                    + " (have=" + stock + ", need=" + quantity + ")";
+            debugStateService.recordLogisticsAction(msg);
+            log.info(msg);
             return Mono.empty();
         }
+
+        debugStateService.recordLogisticsAction(
+                "Stock OK → lancement trucking " + goodName
+        );
 
         return shippingClient.createTrucking(
                 originPlanetId,
                 destinationPlanetId,
                 Map.of(goodName, quantity)
         )
-                .doOnSuccess(ship -> log.info(
-                "Trucking lancé ship={} {} -> {} cargo={} fee={}",
-                ship.id(),
-                ship.originPlanetId(),
-                ship.destinationPlanetId(),
-                ship.cargo(),
-                ship.fee()
-        ))
+                .doOnSuccess(ship -> {
+                    String msg = "🚀 Truck lancé : " + ship.id()
+                            + " | " + ship.originPlanetId()
+                            + " -> " + ship.destinationPlanetId()
+                            + " | cargo=" + ship.cargo()
+                            + " | status=" + ship.status();
+
+                    debugStateService.recordLogisticsAction(msg);
+                    debugShipService.recordShipSnapshot(ship, "Ship créé par logistics");
+                    log.info("{} fee={}", msg, ship.fee());
+                })
                 .then();
     }
 }

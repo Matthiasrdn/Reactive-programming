@@ -2,28 +2,38 @@ server:
   port: 8081
 
 offworld:
-  base-url: "http://localhost:8080"
-  player-id: "your-player-id"
-  api-key: "your-api-key"
+  base-url: "http://localhost:3000"
+  player-id: "beta-corp"
+  api-key: "beta-secret-key-002"
   callback-url: "http://localhost:8081/webhooks"
+
   polling:
     ship-interval: 5s
     construction-interval: 10s
+
   market:
-    enabled: true
+    enabled: false
+
   trading:
-    enabled: true
-    station-planet-id: "Sol-3"
+    enabled: false
+    station-planet-id: "Proxima Centauri-1"
     default-quantity: 10
     min-spread: 5
+
   logistics:
-    enabled: true
-    origin-system-name: "Sol"
-    origin-planet-id: "Sol-3"
-    destination-planet-id: "Proxima Centauri-1"
-    good-name: "iron_ore"
-    quantity: 20
+    enabled: false
+    origin-system-name: "Proxima Centauri"
+    origin-planet-id: "Proxima Centauri-1"
+    destination-planet-id: "Sol-3"
+    good-name: "rare_metals"
+    quantity: 50
+
   order-management:
-    enabled: true
+    enabled: false
     max-open-orders-per-good: 2
     cancel-after-seconds: 120
+
+logging:
+  level:
+    root: INFO
+    com.example.offworld: DEBUG

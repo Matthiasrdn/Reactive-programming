@@ -24,9 +24,6 @@ public class CallbackRegistrationService {
 
     @PostConstruct
     public void registerCallback() {
-        playerClient.updateCallbackUrl(props.getPlayerId(), props.getCallbackUrl())
-                .doOnSuccess(v -> log.info("Callback URL enregistrée: {}", props.getCallbackUrl()))
-                .doOnError(e -> log.error("Impossible d'enregistrer la callback URL", e))
-                .subscribe();
+        log.warn("Callback désactivée temporairement (bug serveur)");
     }
 }
