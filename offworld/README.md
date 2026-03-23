@@ -2,7 +2,8 @@
 
 Client Spring Boot WebFlux pour interagir avec le serveur Rust offworld-trading-manager.
 
-Ce projet permet de :
+## 🎯 Fonctionnalités
+
 - automatiser le trading (buy / sell simple)
 - automatiser la logistique (transport)
 - afficher un dashboard temps réel
@@ -14,13 +15,17 @@ Ce projet permet de :
 
 ## 1. Cloner le client
 
+```bash
 git clone https://github.com/Matthiasrdn/Reactive-programming.git
 cd Reactive-programming/offworld
+```
 
 ## 2. Cloner le serveur
 
+```bash
 git clone https://github.com/arendsyl/offworld-trading-manager.git
 cd offworld-trading-manager
+```
 
 ---
 
@@ -28,41 +33,64 @@ cd offworld-trading-manager
 
 ## Lancer le serveur Rust
 
+```bash
 cargo run
+```
 
-API :
+API :  
 http://localhost:3000
 
 ## Lancer le client Spring
 
+```bash
 ./mvnw spring-boot:run
+```
 
-UI :
-http://localhost:8081
+UI :  
+http://localhost:8081  
 
-STATE JSON :
+STATE JSON :  
 http://localhost:8081/state
 
 ---
 
 # 🧠 Architecture
 
-SimulationStateService  
+```mermaid
+flowchart TD
+
+    A["Front Dashboard<br/>DebugController"]
+        --> B["State / Read Model<br/>SimulationStateSvc"]
+
+    B --> C["Sync Domain<br/>PlayerSyncService<br/>StateSyncService"]
+    B --> D["Automation Domain<br/>TradingScanService<br/>ShipAutomationSvc<br/>LogisticsSvc"]
+
+    C --> E["HTTP Clients / Integration<br/>PlayerClient<br/>StationClient<br/>ShippingClient<br/>MarketClient"]
+    D --> E
+
+    E --> F["Rust Game Server / Market Engine<br/>offworld-trading-manager"]
+```
+
+---
+
+# 🧩 Description des composants
+
+**SimulationStateService**  
 → stocke tout l’état (stations, ships, orders, market, trades)
 
-StateSyncService  
+**StateSyncService**  
 → synchronise périodiquement avec le serveur
 
-ShipAutomationService  
+**ShipAutomationService**  
 → auto dock / undock (ignore les ships non possédés)
 
-SimpleLogisticsAutomationService  
+**SimpleLogisticsAutomationService**  
 → transporte les ressources automatiquement
 
-TradingScanService  
+**TradingScanService**  
 → stratégie simple buy/sell
 
-PlayerSyncService  
+**PlayerSyncService**  
 → récupère les crédits
 
 ---
@@ -103,6 +131,7 @@ Conditions :
 
 # ⚙️ Configuration (application.yml)
 
+```yaml
 server:
   port: 8081
 
@@ -134,38 +163,42 @@ offworld:
   order-management:
     enabled: true
     cancel-after-seconds: 120
+```
 
 ---
 
 # 🔐 Préparer le token
 
+```bash
 export TOKEN="Authorization: Bearer beta-secret-key-002"
+```
 
 ---
 
-# 🧪 TEST COMPLET (copier-coller)
+# 🧪 TEST COMPLET
 
 ## 1. Voir argent
 
+```bash
 curl -H "$TOKEN" http://localhost:3000/players/beta-corp | jq
-
----
+```
 
 ## 2. Voir station
 
+```bash
 curl -H "$TOKEN" \
 "http://localhost:3000/settlements/Proxima%20Centauri/Proxima%20Centauri-1/station" | jq
-
----
+```
 
 ## 3. Voir marché
 
+```bash
 curl http://localhost:3000/market/book/food | jq
-
----
+```
 
 ## 4. Créer SELL
 
+```bash
 curl -X POST http://localhost:3000/market/orders \
 -H "$TOKEN" \
 -H "Content-Type: application/json" \
@@ -177,11 +210,11 @@ curl -X POST http://localhost:3000/market/orders \
   "quantity":10,
   "station_planet_id":"Proxima Centauri-1"
 }'
-
----
+```
 
 ## 5. Créer BUY (match)
 
+```bash
 curl -X POST http://localhost:3000/market/orders \
 -H "$TOKEN" \
 -H "Content-Type: application/json" \
@@ -193,42 +226,46 @@ curl -X POST http://localhost:3000/market/orders \
   "quantity":10,
   "station_planet_id":"Proxima Centauri-1"
 }'
-
----
+```
 
 ## 6. Voir orders
 
+```bash
 curl -H "$TOKEN" http://localhost:3000/market/orders | jq
-
----
+```
 
 ## 7. Voir trades live
 
+```bash
 curl -N http://localhost:3000/market/trades
-
----
+```
 
 ## 8. Voir ships
 
+```bash
 curl -H "$TOKEN" http://localhost:3000/ships | jq
-
----
+```
 
 ## 9. Voir state UI
 
+```bash
 curl -s http://localhost:8081/state | jq
+```
 
 ---
 
 # 🔁 Reset state
 
+```bash
 curl -X POST http://localhost:8081/debug/state/reset \
 -H "$TOKEN"
+```
 
 ---
 
 # 🧪 Séquence rapide
 
+```bash
 export TOKEN="Authorization: Bearer beta-secret-key-002"
 
 curl -H "$TOKEN" http://localhost:3000/players/beta-corp | jq
@@ -241,6 +278,7 @@ curl -X POST http://localhost:3000/market/orders \
 curl -X POST http://localhost:3000/market/orders \
 -H "$TOKEN" -H "Content-Type: application/json" \
 -d '{"good_name":"food","side":"buy","order_type":"limit","price":20,"quantity":10,"station_planet_id":"Proxima Centauri-1"}'
+```
 
 ---
 
@@ -262,20 +300,3 @@ Après les curls :
 - argent mis à jour
 - dashboard dynamique
 - ascenseur actif si stock OK
-
-# Architecture du projet
-
-
-```mermaid
-flowchart TD
-
-A[Front Dashboard<br/>DebugController]
-    --> B[State / Read Model<br/>SimulationStateSvc]
-
-B --> C[Sync Domain<br/>- PlayerSyncService<br/>- StateSyncService]
-B --> D[Automation Domain<br/>- TradingScanService<br/>- ShipAutomationSvc<br/>- LogisticsSvc]
-
-C --> E[HTTP Clients / Integration<br/>PlayerClient | StationClient | ShippingClient | MarketClient]
-D --> E
-
-E --> F[Rust Game Server / Market Engine<br/>offworld-trading-manager]
