@@ -265,6 +265,9 @@ Après les curls :
 
 # Architecture du projet
 
+
+---
+
                         +----------------------+
                         |   Front Dashboard    |
                         |   DebugController    |
@@ -295,3 +298,6 @@ Après les curls :
 |              Rust Game Server / Market Engine                 |
 |              offworld-trading-manager                         |
 +---------------------------------------------------------------+
+
+
+---
