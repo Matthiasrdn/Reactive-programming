@@ -27,6 +27,7 @@ public class LogisticsService {
     private final OffworldProperties props;
     private final DebugStateService debugStateService;
     private final DebugShipService debugShipService;
+    private final SimulationStateService simulationStateService;
 
     private final AtomicBoolean truckingInFlight = new AtomicBoolean(false);
 
@@ -35,13 +36,15 @@ public class LogisticsService {
             StationClient stationClient,
             OffworldProperties props,
             DebugStateService debugStateService,
-            DebugShipService debugShipService
+            DebugShipService debugShipService,
+            SimulationStateService simulationStateService
     ) {
         this.shippingClient = shippingClient;
         this.stationClient = stationClient;
         this.props = props;
         this.debugStateService = debugStateService;
         this.debugShipService = debugShipService;
+        this.simulationStateService = simulationStateService;
     }
 
     @PostConstruct
@@ -90,6 +93,12 @@ public class LogisticsService {
         );
 
         return stationClient.getStation(systemName, originPlanetId)
+                .doOnNext(station -> simulationStateService.updatePlanetInventory(
+                        systemName,
+                        originPlanetId,
+                        station,
+                        "logistics-poll"
+                ))
                 .flatMap(station -> launchIfEnoughStock(
                 station,
                 originPlanetId,
@@ -128,6 +137,7 @@ public class LogisticsService {
                 Map.of(goodName, quantity)
         )
                 .doOnSuccess(ship -> {
+                    simulationStateService.updateShip(ship, "logistics-create-trucking");
                     String msg = "🚀 Truck lancé : " + ship.id()
                             + " | " + ship.originPlanetId()
                             + " -> " + ship.destinationPlanetId()

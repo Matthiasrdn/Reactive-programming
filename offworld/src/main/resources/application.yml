@@ -12,10 +12,10 @@ offworld:
     construction-interval: 10s
 
   market:
-    enabled: false
+    enabled: true
 
   trading:
-    enabled: false
+    enabled: true
     station-planet-id: "Proxima Centauri-1"
     default-quantity: 10
     min-spread: 5
@@ -29,7 +29,7 @@ offworld:
     quantity: 50
 
   order-management:
-    enabled: false
+    enabled: true
     max-open-orders-per-good: 2
     cancel-after-seconds: 120
 

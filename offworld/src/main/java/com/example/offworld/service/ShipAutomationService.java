@@ -23,17 +23,20 @@ public class ShipAutomationService {
     private final OffworldProperties props;
     private final DebugStateService debugStateService;
     private final DebugShipService debugShipService;
+    private final SimulationStateService simulationStateService;
 
     public ShipAutomationService(
             ShippingClient shippingClient,
             OffworldProperties props,
             DebugStateService debugStateService,
-            DebugShipService debugShipService
+            DebugShipService debugShipService,
+            SimulationStateService simulationStateService
     ) {
         this.shippingClient = shippingClient;
         this.props = props;
         this.debugStateService = debugStateService;
         this.debugShipService = debugShipService;
+        this.simulationStateService = simulationStateService;
     }
 
     @PostConstruct
@@ -66,6 +69,7 @@ public class ShipAutomationService {
     private Mono<ShipDto> processShip(String shipId) {
         return shippingClient.getShip(shipId)
                 .doOnNext(ship -> {
+                    simulationStateService.updateShip(ship, "ship-poll");
                     debugShipService.recordShipSnapshot(ship, "Ship observé par polling");
                     debugStateService.recordShipAction("Ship " + ship.id() + " status=" + ship.status());
                 })
@@ -73,6 +77,7 @@ public class ShipAutomationService {
             case "awaiting_origin_docking_auth" ->
                 shippingClient.authorizeDock(ship.id())
                 .doOnSuccess(s -> {
+                    simulationStateService.updateShip(s, "ship-status-update");
                     debugStateService.recordShipAction("Origin dock autorisé pour " + s.id());
                     debugShipService.recordShipSnapshot(s, "Origin dock autorisé");
                     log.info("Origin dock autorisé pour {}", s.id());
@@ -81,6 +86,7 @@ public class ShipAutomationService {
             case "awaiting_origin_undocking_auth" ->
                 shippingClient.authorizeUndock(ship.id())
                 .doOnSuccess(s -> {
+                    simulationStateService.updateShip(s, "ship-status-update");
                     debugStateService.recordShipAction("Origin undock autorisé pour " + s.id());
                     debugShipService.recordShipSnapshot(s, "Origin undock autorisé");
                     log.info("Origin undock autorisé pour {}", s.id());
@@ -89,6 +95,7 @@ public class ShipAutomationService {
             case "awaiting_docking_auth" ->
                 shippingClient.authorizeDock(ship.id())
                 .doOnSuccess(s -> {
+                    simulationStateService.updateShip(s, "ship-status-update");
                     debugStateService.recordShipAction("Dock destination autorisé pour " + s.id());
                     debugShipService.recordShipSnapshot(s, "Dock destination autorisé");
                     log.info("Dock destination autorisé pour {}", s.id());
@@ -97,6 +104,7 @@ public class ShipAutomationService {
             case "awaiting_undocking_auth" ->
                 shippingClient.authorizeUndock(ship.id())
                 .doOnSuccess(s -> {
+                    simulationStateService.updateShip(s, "ship-status-update");
                     debugStateService.recordShipAction("Undock destination autorisé pour " + s.id());
                     debugShipService.recordShipSnapshot(s, "Undock destination autorisé");
                     log.info("Undock destination autorisé pour {}", s.id());
