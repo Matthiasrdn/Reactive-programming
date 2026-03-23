@@ -2,12 +2,14 @@ package com.example.offworld.service;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -16,47 +18,44 @@ import com.example.offworld.dto.market.MarketOrderDto;
 import com.example.offworld.dto.market.OrderBookDto;
 import com.example.offworld.dto.market.OrderBookLevel;
 import com.example.offworld.dto.market.TradeEvent;
+import com.example.offworld.dto.player.PlayerDto;
 import com.example.offworld.dto.shipping.ShipDto;
 import com.example.offworld.dto.station.StationDto;
 
 @Service
 public class SimulationStateService {
 
-    private static final int MAX_RECENT_EVENTS = 80;
-    private static final int MAX_RECENT_TRADES = 120;
+    private static final int MAX_RECENT_TRADES = 50;
+
+    private final OffworldProperties props;
 
     private final Map<String, PlanetState> planets = new ConcurrentHashMap<>();
     private final Map<String, OrderState> activeOrders = new ConcurrentHashMap<>();
     private final Map<String, ShipState> ships = new ConcurrentHashMap<>();
     private final Map<String, MarketPriceState> marketPrices = new ConcurrentHashMap<>();
     private final ConcurrentLinkedDeque<TradeState> recentTrades = new ConcurrentLinkedDeque<>();
-    private final ConcurrentLinkedDeque<StateEvent> recentEvents = new ConcurrentLinkedDeque<>();
+    private volatile PlayerState player;
+
     private final AtomicReference<String> lastUpdatedAt = new AtomicReference<>(Instant.now().toString());
 
     public SimulationStateService(OffworldProperties props) {
-        registerPlanet(props.getTrading().getStationPlanetId(), "trading-station");
-        registerPlanet(props.getLogistics().getOriginPlanetId(), "logistics-origin");
-        registerPlanet(props.getLogistics().getDestinationPlanetId(), "logistics-destination");
+        this.props = props;
     }
 
-    public void registerPlanet(String planetId, String source) {
-        if (planetId == null || planetId.isBlank()) {
+    public void updatePlayer(PlayerDto playerDto, String source) {
+        if (playerDto == null) {
             return;
         }
 
-        planets.compute(planetId, (key, existing) -> {
-            PlanetState base = existing != null ? existing : PlanetState.empty(key);
-            return new PlanetState(
-                    base.planetId(),
-                    base.displayName(),
-                    base.systemName(),
-                    new LinkedHashMap<>(base.inventory()),
-                    source,
-                    now()
-            );
-        });
+        this.player = new PlayerState(
+                playerDto.id(),
+                playerDto.name(),
+                playerDto.credits(),
+                source,
+                now()
+        );
 
-        recordEvent("planet", "Planete %s observee".formatted(planetId));
+        touch();
     }
 
     public void updatePlanetInventory(String systemName, String planetId, StationDto station, String source) {
@@ -64,18 +63,19 @@ public class SimulationStateService {
             return;
         }
 
-        Map<String, Integer> inventoryCopy = copyMap(station.inventory());
-
-        planets.put(planetId, new PlanetState(
+        planets.put(
                 planetId,
-                station.name() != null && !station.name().isBlank() ? station.name() : planetId,
-                systemName,
-                inventoryCopy,
-                source,
-                now()
-        ));
+                new PlanetState(
+                        planetId,
+                        station.name() != null && !station.name().isBlank() ? station.name() : planetId,
+                        systemName,
+                        copyIntegerMap(station.inventory()),
+                        source,
+                        now()
+                )
+        );
 
-        recordEvent("planet", buildPlanetInventoryMessage(planetId, inventoryCopy));
+        touch();
     }
 
     public void updateOrder(MarketOrderDto order, String source) {
@@ -83,16 +83,13 @@ public class SimulationStateService {
             return;
         }
 
-        OrderState orderState = OrderState.from(order, source, now());
-
         if (isTerminalStatus(order.status())) {
             activeOrders.remove(order.id());
-            recordEvent("order", buildOrderMessage(order));
-            return;
+        } else {
+            activeOrders.put(order.id(), OrderState.from(order, source, now()));
         }
 
-        activeOrders.put(order.id(), orderState);
-        recordEvent("order", buildOrderMessage(order));
+        touch();
     }
 
     public void removeOrder(String orderId, String source) {
@@ -101,7 +98,7 @@ public class SimulationStateService {
         }
 
         activeOrders.remove(orderId);
-        recordEvent("order", "Ordre %s retire".formatted(orderId));
+        touch();
     }
 
     public void updateShip(ShipDto ship, String source) {
@@ -109,33 +106,8 @@ public class SimulationStateService {
             return;
         }
 
-        if (ship.originPlanetId() != null) {
-            registerPlanet(ship.originPlanetId(), "ship-origin");
-        }
-        if (ship.destinationPlanetId() != null) {
-            registerPlanet(ship.destinationPlanetId(), "ship-destination");
-        }
-
         ships.put(ship.id(), ShipState.from(ship, source, now()));
-        recordEvent("ship", buildShipMessage(ship));
-    }
-
-    public void updateMarketPrices(Map<String, Integer> prices, String source) {
-        if (prices == null || prices.isEmpty()) {
-            return;
-        }
-
-        String updatedAt = now();
-        prices.forEach((goodName, price) -> {
-            if (goodName == null || goodName.isBlank()) {
-                return;
-            }
-
-            marketPrices.put(goodName, new MarketPriceState(goodName, price, null, null, null, source, updatedAt));
-        });
-
-        touch(updatedAt);
-        recordEvent("market", "Prix marche mis a jour (%d ressources)".formatted(prices.size()));
+        touch();
     }
 
     public void updateOrderBook(OrderBookDto orderBook, String source) {
@@ -145,23 +117,21 @@ public class SimulationStateService {
 
         OrderBookLevel bestBid = firstLevel(orderBook.bids());
         OrderBookLevel bestAsk = firstLevel(orderBook.asks());
-        Integer spread = bestBid != null && bestAsk != null
-                ? bestAsk.price() - bestBid.price()
-                : null;
-        String updatedAt = now();
 
-        marketPrices.put(orderBook.goodName(), new MarketPriceState(
+        marketPrices.put(
                 orderBook.goodName(),
-                orderBook.lastTradePrice(),
-                bestBid != null ? bestBid.price() : null,
-                bestAsk != null ? bestAsk.price() : null,
-                spread,
-                source,
-                updatedAt
-        ));
+                new MarketPriceState(
+                        orderBook.goodName(),
+                        orderBook.lastTradePrice(),
+                        bestBid != null ? bestBid.price() : null,
+                        bestAsk != null ? bestAsk.price() : null,
+                        (bestBid != null && bestAsk != null) ? bestAsk.price() - bestBid.price() : null,
+                        source,
+                        now()
+                )
+        );
 
-        touch(updatedAt);
-        recordEvent("market", buildOrderBookMessage(orderBook.goodName(), bestBid, bestAsk));
+        touch();
     }
 
     public void recordTrade(TradeEvent trade, String source) {
@@ -170,47 +140,227 @@ public class SimulationStateService {
         }
 
         recentTrades.addFirst(TradeState.from(trade, source));
-        trimDeque(recentTrades, MAX_RECENT_TRADES);
+        while (recentTrades.size() > MAX_RECENT_TRADES) {
+            recentTrades.pollLast();
+        }
 
-        recordEvent(
-                "trade",
-                "Trade %s @ %d x%d".formatted(
-                        safe(trade.goodName()),
-                        trade.price(),
-                        trade.quantity()
-                )
-        );
+        touch();
     }
 
     public Map<String, Object> snapshot() {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("updatedAt", lastUpdatedAt.get());
-        result.put("planets", new LinkedHashMap<>(planets));
-        result.put("activeOrders", new LinkedHashMap<>(activeOrders));
-        result.put("ships", new LinkedHashMap<>(ships));
-        result.put("marketPrices", new LinkedHashMap<>(marketPrices));
-        result.put("recentTrades", new ArrayList<>(recentTrades));
-        result.put("recentEvents", new ArrayList<>(recentEvents));
+        result.put("player", player);
+        result.put("position", positionOverview());
+        result.put("surfaceStock", surfaceStock());
+        result.put("globalResources", globalResources());
+        result.put("orbitalInventory", orbitalInventory());
+        result.put("elevatorOverview", elevatorOverview());
+        result.put("spaceShips", spaceShips());
+        result.put("operations", operationsOverview());
+        result.put("planets", planetStates());
+        result.put("ships", shipStates());
+        result.put("activeOrders", activeOrderStates());
+        result.put("marketPrices", marketPriceStates());
+        result.put("recentTrades", recentTradeStates());
+        result.put("botStatus", botStatus());
         result.put("counts", Map.of(
                 "planets", planets.size(),
-                "activeOrders", activeOrders.size(),
                 "ships", ships.size(),
-                "marketPrices", marketPrices.size(),
-                "recentTrades", recentTrades.size()
+                "activeOrders", activeOrders.size(),
+                "recentTrades", recentTrades.size(),
+                "marketPrices", marketPrices.size()
         ));
         return result;
     }
 
-    public Map<String, PlanetState> planetStates() {
-        return new LinkedHashMap<>(planets);
+    public void clearAll() {
+        planets.clear();
+        activeOrders.clear();
+        ships.clear();
+        marketPrices.clear();
+        recentTrades.clear();
+        player = null;
+        touch();
     }
 
-    public Map<String, OrderState> activeOrderStates() {
-        return new LinkedHashMap<>(activeOrders);
+    public Map<String, Object> positionOverview() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("playerId", props.getPlayerId());
+        result.put("baseUrl", props.getBaseUrl());
+        result.put("stationSystemName", props.getTrading().getStationSystemName());
+        result.put("tradingStationPlanetId", props.getTrading().getStationPlanetId());
+        result.put("originSystemName", props.getLogistics().getOriginSystemName());
+        result.put("originPlanetId", props.getLogistics().getOriginPlanetId());
+        result.put("destinationSystemName", props.getLogistics().getDestinationSystemName());
+        result.put("destinationPlanetId", props.getLogistics().getDestinationPlanetId());
+        result.put("goodName", props.getLogistics().getGoodName());
+        result.put("quantity", props.getLogistics().getQuantity());
+        result.put("logisticsEnabled", props.getLogistics().isEnabled());
+        result.put("tradingEnabled", props.getTrading().isEnabled());
+        result.put("marketEnabled", props.getMarket().isEnabled());
+        return result;
+    }
+
+    public Map<String, Integer> surfaceStock() {
+        String surfacePlanetId = resolveSurfacePlanetId();
+        if (surfacePlanetId == null) {
+            return Map.of();
+        }
+
+        PlanetState planet = planets.get(surfacePlanetId);
+        if (planet == null || planet.inventory() == null) {
+            return Map.of();
+        }
+
+        return sortDesc(planet.inventory());
+    }
+
+    public Map<String, Integer> globalResources() {
+        Map<String, Integer> totals = new LinkedHashMap<>();
+
+        planets.values().forEach(planet -> {
+            if (planet.inventory() == null) {
+                return;
+            }
+
+            planet.inventory().forEach((good, qty) -> {
+                if (good == null || good.isBlank()) {
+                    return;
+                }
+                totals.merge(good, qty == null ? 0 : qty, Integer::sum);
+            });
+        });
+
+        return sortDesc(totals);
+    }
+
+    public Map<String, Integer> orbitalInventory() {
+        Map<String, Integer> totals = new LinkedHashMap<>();
+
+        ships.values().forEach(ship -> {
+            if (ship.cargo() == null) {
+                return;
+            }
+
+            ship.cargo().forEach((good, qty) -> {
+                if (good == null || good.isBlank()) {
+                    return;
+                }
+                totals.merge(good, qty == null ? 0 : qty, Integer::sum);
+            });
+        });
+
+        return sortDesc(totals);
+    }
+
+    public Map<String, Object> elevatorOverview() {
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        String surfacePlanetId = resolveSurfacePlanetId();
+        String surfaceSystemName = resolveSurfaceSystemName();
+        String goodName = props.getLogistics().getGoodName();
+        int requestedQuantity = props.getLogistics().getQuantity();
+        int availableSurfaceStock = surfaceStock().getOrDefault(goodName, 0);
+        int loadableNow = Math.min(availableSurfaceStock, requestedQuantity);
+
+        result.put("enabled", props.getLogistics().isEnabled());
+        result.put("type", "station_to_planet");
+        result.put("surfacePlanetId", surfacePlanetId);
+        result.put("surfaceSystemName", surfaceSystemName);
+        result.put("orbitalNode", "Orbital Hub");
+        result.put("goodName", goodName);
+        result.put("requestedQuantity", requestedQuantity);
+        result.put("availableSurfaceStock", availableSurfaceStock);
+        result.put("loadableNow", loadableNow);
+        result.put("direction", "surface <-> orbital");
+
+        String status;
+        if (!props.getLogistics().isEnabled()) {
+            status = "disabled";
+        } else if (availableSurfaceStock <= 0) {
+            status = "waiting_surface_stock";
+        } else if (loadableNow < requestedQuantity) {
+            status = "partial_load_ready";
+        } else {
+            status = "ready";
+        }
+
+        result.put("status", status);
+        return result;
+    }
+
+    public Map<String, ShipState> spaceShips() {
+        return ships.values().stream()
+                .sorted(Comparator.comparing(ShipState::updatedAt).reversed())
+                .collect(Collectors.toMap(
+                        ShipState::shipId,
+                        s -> s,
+                        (a, b) -> a,
+                        LinkedHashMap::new
+                ));
+    }
+
+    public Map<String, Object> operationsOverview() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("targetPlanet", props.getLogistics().getDestinationPlanetId());
+        result.put("contractGood", props.getLogistics().getGoodName());
+        result.put("quantity", props.getLogistics().getQuantity());
+        result.put("spaceRoute", props.getLogistics().getOriginPlanetId() + " -> " + props.getLogistics().getDestinationPlanetId());
+        result.put("surfacePlanet", resolveSurfacePlanetId());
+        result.put("spaceShips", ships.size());
+        result.put("openOrders", activeOrders.size());
+        return result;
+    }
+
+    public Map<String, Object> botStatus() {
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        TradeState lastTrade = recentTrades.peekFirst();
+        if (lastTrade != null) {
+            result.put("lastAction", "Trade " + lastTrade.goodName() + " x" + lastTrade.quantity() + " @ " + lastTrade.price());
+        } else if (!activeOrders.isEmpty()) {
+            result.put("lastAction", "Ordres actifs en cours");
+        } else if (!ships.isEmpty()) {
+            result.put("lastAction", "Transport spatial en cours");
+        } else if (props.getLogistics().isEnabled()) {
+            result.put("lastAction", "Ascenseur local prêt / surveillance active");
+        } else {
+            result.put("lastAction", "Aucune action récente");
+        }
+
+        result.put("activeOrders", activeOrders.size());
+        result.put("trackedMarkets", marketPrices.size());
+        result.put("activeSpaceShips", ships.size());
+
+        String bestOpportunity = marketPrices.values().stream()
+                .filter(mp -> mp.spread() != null)
+                .sorted((a, b) -> Integer.compare(b.spread(), a.spread()))
+                .map(mp -> mp.goodName() + " spread=" + mp.spread())
+                .findFirst()
+                .orElse("Aucune opportunité");
+
+        result.put("bestOpportunity", bestOpportunity);
+        return result;
+    }
+
+    public Map<String, PlanetState> planetStates() {
+        return planets.values().stream()
+                .sorted(Comparator.comparing(PlanetState::updatedAt).reversed())
+                .collect(Collectors.toMap(
+                        PlanetState::planetId,
+                        p -> p,
+                        (a, b) -> a,
+                        LinkedHashMap::new
+                ));
     }
 
     public Map<String, ShipState> shipStates() {
         return new LinkedHashMap<>(ships);
+    }
+
+    public Map<String, OrderState> activeOrderStates() {
+        return new LinkedHashMap<>(activeOrders);
     }
 
     public Map<String, MarketPriceState> marketPriceStates() {
@@ -221,80 +371,76 @@ public class SimulationStateService {
         return new ArrayList<>(recentTrades);
     }
 
-    private OrderBookLevel firstLevel(List<OrderBookLevel> levels) {
-        return levels == null || levels.isEmpty() ? null : levels.get(0);
+    private String resolveSurfacePlanetId() {
+        if (props.getTrading().getStationPlanetId() != null && !props.getTrading().getStationPlanetId().isBlank()) {
+            return props.getTrading().getStationPlanetId();
+        }
+        return props.getLogistics().getOriginPlanetId();
     }
 
-    private void recordEvent(String type, String message) {
-        String timestamp = now();
-        recentEvents.addFirst(new StateEvent(type, message, timestamp));
-        trimDeque(recentEvents, MAX_RECENT_EVENTS);
-        touch(timestamp);
-    }
-
-    private void touch(String timestamp) {
-        lastUpdatedAt.set(timestamp);
-    }
-
-    private String now() {
-        return Instant.now().toString();
+    private String resolveSurfaceSystemName() {
+        if (props.getTrading().getStationSystemName() != null && !props.getTrading().getStationSystemName().isBlank()) {
+            return props.getTrading().getStationSystemName();
+        }
+        return props.getLogistics().getOriginSystemName();
     }
 
     private boolean isTerminalStatus(String status) {
         if (status == null) {
             return false;
         }
-
         return status.equalsIgnoreCase("filled")
                 || status.equalsIgnoreCase("cancelled")
                 || status.equalsIgnoreCase("rejected");
     }
 
-    private Map<String, Integer> copyMap(Map<String, Integer> source) {
-        return source == null ? new LinkedHashMap<>() : new LinkedHashMap<>(source);
+    private OrderBookLevel firstLevel(List<OrderBookLevel> levels) {
+        return levels == null || levels.isEmpty() ? null : levels.get(0);
     }
 
-    private <T> void trimDeque(ConcurrentLinkedDeque<T> deque, int maxSize) {
-        while (deque.size() > maxSize) {
-            deque.pollLast();
+    private Map<String, Integer> sortDesc(Map<String, Integer> input) {
+        return input.entrySet()
+                .stream()
+                .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
+                .collect(
+                        LinkedHashMap::new,
+                        (map, e) -> map.put(e.getKey(), e.getValue()),
+                        LinkedHashMap::putAll
+                );
+    }
+
+    private Map<String, Integer> copyIntegerMap(Map<?, ?> source) {
+        Map<String, Integer> result = new LinkedHashMap<>();
+        if (source == null) {
+            return result;
         }
+
+        source.forEach((key, value) -> {
+            if (key == null) {
+                return;
+            }
+            result.put(String.valueOf(key), value instanceof Number n ? n.intValue() : 0);
+        });
+
+        return result;
     }
 
-    private String safe(String value) {
-        return value == null ? "unknown" : value;
+    private void touch() {
+        lastUpdatedAt.set(now());
     }
 
-    private String buildPlanetInventoryMessage(String planetId, Map<String, Integer> inventory) {
-        Map.Entry<String, Integer> firstEntry = inventory.entrySet().stream().findFirst().orElse(null);
-        if (firstEntry == null) {
-            return "Stock %s observe".formatted(planetId);
-        }
-        return "Stock %s %s=%d".formatted(planetId, firstEntry.getKey(), firstEntry.getValue());
+    private String now() {
+        return Instant.now().toString();
     }
 
-    private String buildOrderMessage(MarketOrderDto order) {
-        return "Ordre %s %s %s".formatted(
-                safe(order.side()).toUpperCase(),
-                safe(order.goodName()),
-                safe(order.status()).toUpperCase()
-        );
-    }
+    public record PlayerState(
+            String playerId,
+            String name,
+            Integer credits,
+            String source,
+            String updatedAt
+            ) {
 
-    private String buildShipMessage(ShipDto ship) {
-        return "Ship %s %s -> %s %s".formatted(
-                ship.id(),
-                safe(ship.originPlanetId()),
-                safe(ship.destinationPlanetId()),
-                safe(ship.status()).toUpperCase()
-        );
-    }
-
-    private String buildOrderBookMessage(String goodName, OrderBookLevel bestBid, OrderBookLevel bestAsk) {
-        return "Marche %s bid=%s ask=%s".formatted(
-                safe(goodName),
-                bestBid != null ? bestBid.price() : "n/a",
-                bestAsk != null ? bestAsk.price() : "n/a"
-        );
     }
 
     public record PlanetState(
@@ -304,17 +450,8 @@ public class SimulationStateService {
             Map<String, Integer> inventory,
             String source,
             String updatedAt
-    ) {
-        static PlanetState empty(String planetId) {
-            return new PlanetState(
-                    planetId,
-                    planetId,
-                    null,
-                    new LinkedHashMap<>(),
-                    "bootstrap",
-                    Instant.now().toString()
-            );
-        }
+            ) {
+
     }
 
     public record OrderState(
@@ -331,7 +468,8 @@ public class SimulationStateService {
             long createdAt,
             String source,
             String updatedAt
-    ) {
+            ) {
+
         static OrderState from(MarketOrderDto order, String source, String updatedAt) {
             return new OrderState(
                     order.id(),
@@ -365,14 +503,15 @@ public class SimulationStateService {
             Long operationCompleteAt,
             String source,
             String updatedAt
-    ) {
+            ) {
+
         static ShipState from(ShipDto ship, String source, String updatedAt) {
             return new ShipState(
                     ship.id(),
                     ship.ownerId(),
                     ship.originPlanetId(),
                     ship.destinationPlanetId(),
-                    ship.cargo() == null ? Map.of() : new LinkedHashMap<>(ship.cargo()),
+                    normalizeCargo(ship.cargo()),
                     ship.status(),
                     ship.truckingId(),
                     ship.fee(),
@@ -382,6 +521,16 @@ public class SimulationStateService {
                     source,
                     updatedAt
             );
+        }
+
+        private static Map<String, Integer> normalizeCargo(Map<?, ?> source) {
+            Map<String, Integer> result = new LinkedHashMap<>();
+            if (source == null) {
+                return result;
+            }
+
+            source.forEach((key, value) -> result.put(String.valueOf(key), value instanceof Number n ? n.intValue() : 0));
+            return result;
         }
     }
 
@@ -393,7 +542,8 @@ public class SimulationStateService {
             Integer spread,
             String source,
             String updatedAt
-    ) {
+            ) {
+
     }
 
     public record TradeState(
@@ -408,7 +558,8 @@ public class SimulationStateService {
             long timestamp,
             String source,
             String recordedAt
-    ) {
+            ) {
+
         static TradeState from(TradeEvent trade, String source) {
             return new TradeState(
                     trade.id(),
@@ -424,12 +575,5 @@ public class SimulationStateService {
                     Instant.now().toString()
             );
         }
-    }
-
-    public record StateEvent(
-            String type,
-            String message,
-            String recordedAt
-    ) {
     }
 }

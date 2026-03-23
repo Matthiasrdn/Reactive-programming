@@ -19,19 +19,33 @@ offworld:
     station-planet-id: "Proxima Centauri-1"
     default-quantity: 10
     min-spread: 5
+    watched-goods:
+      - "food"
+      - "water"
+      - "iron_ore"
+      - "rare_metals"
 
   logistics:
-    enabled: false
+    enabled: true
     origin-system-name: "Proxima Centauri"
     origin-planet-id: "Proxima Centauri-1"
+    destination-system-name: "Sol"
     destination-planet-id: "Sol-3"
-    good-name: "rare_metals"
-    quantity: 50
+    good-name: "food"
+    quantity: 10
 
   order-management:
     enabled: true
     max-open-orders-per-good: 2
     cancel-after-seconds: 120
+
+  sync:
+    stations-interval-ms: 5000
+    ships-interval-ms: 5000
+    orders-interval-ms: 5000
+    market-interval-ms: 15000
+    logistics-interval-ms: 8000
+    trading-scan-interval-ms: 15000
 
 logging:
   level:

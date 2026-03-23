@@ -27,6 +27,9 @@ class OrderManagementServiceTest {
     @Mock
     private DebugStateService debugStateService;
 
+    @Mock
+    private SimulationStateService simulationStateService;
+
     private OrderManagementService service;
 
     @BeforeEach
@@ -36,7 +39,12 @@ class OrderManagementServiceTest {
         OffworldProperties props = new OffworldProperties();
         props.getOrderManagement().setCancelAfterSeconds(120);
 
-        service = new OrderManagementService(marketClient, props, debugStateService);
+        service = new OrderManagementService(
+                marketClient,
+                props,
+                debugStateService,
+                simulationStateService
+        );
     }
 
     @Test

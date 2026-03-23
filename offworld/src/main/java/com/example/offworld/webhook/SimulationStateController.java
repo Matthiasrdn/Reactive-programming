@@ -1,7 +1,6 @@
 package com.example.offworld.webhook;
 
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.MediaType;
@@ -31,30 +30,5 @@ public class SimulationStateController {
         return Flux.interval(Duration.ofSeconds(1))
                 .startWith(0L)
                 .map(tick -> simulationStateService.snapshot());
-    }
-
-    @GetMapping(path = "/market", produces = MediaType.APPLICATION_JSON_VALUE)
-    public Map<String, SimulationStateService.MarketPriceState> market() {
-        return simulationStateService.marketPriceStates();
-    }
-
-    @GetMapping(path = "/ships", produces = MediaType.APPLICATION_JSON_VALUE)
-    public Map<String, SimulationStateService.ShipState> ships() {
-        return simulationStateService.shipStates();
-    }
-
-    @GetMapping(path = "/planets", produces = MediaType.APPLICATION_JSON_VALUE)
-    public Map<String, SimulationStateService.PlanetState> planets() {
-        return simulationStateService.planetStates();
-    }
-
-    @GetMapping(path = "/orders", produces = MediaType.APPLICATION_JSON_VALUE)
-    public Map<String, SimulationStateService.OrderState> orders() {
-        return simulationStateService.activeOrderStates();
-    }
-
-    @GetMapping(path = "/trades", produces = MediaType.APPLICATION_JSON_VALUE)
-    public List<SimulationStateService.TradeState> trades() {
-        return simulationStateService.recentTradeStates();
     }
 }

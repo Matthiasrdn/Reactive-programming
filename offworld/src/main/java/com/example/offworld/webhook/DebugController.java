@@ -1,846 +1,495 @@
 package com.example.offworld.webhook;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import com.example.offworld.config.OffworldProperties;
-import com.example.offworld.service.DebugShipService;
-import com.example.offworld.service.DebugStateService;
-import com.example.offworld.service.LogisticsService;
-
-import reactor.core.publisher.Mono;
 
 @RestController
 public class DebugController {
 
-    private final OffworldProperties props;
-    private final DebugStateService debugStateService;
-    private final DebugShipService debugShipService;
-    private final LogisticsService logisticsService;
-
-    public DebugController(
-            OffworldProperties props,
-            DebugStateService debugStateService,
-            DebugShipService debugShipService,
-            LogisticsService logisticsService
-    ) {
-        this.props = props;
-        this.debugStateService = debugStateService;
-        this.debugShipService = debugShipService;
-        this.logisticsService = logisticsService;
-    }
-
-    @GetMapping(value = "/debug", produces = MediaType.TEXT_HTML_VALUE)
+    @GetMapping(value = {"/", "/debug"}, produces = MediaType.TEXT_HTML_VALUE)
     public String dashboard() {
         return """
-                <html lang=\"fr\">
-                <head>
-                  <meta charset=\"UTF-8\">
-                  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
-                  <title>Offworld Reactive Demo</title>
-                  <style>
-                    :root {
-                      --bg: #f4efe7;
-                      --panel: #fffdf8;
-                      --panel-strong: #f7f0e6;
-                      --text: #1e1b18;
-                      --muted: #6f655d;
-                      --line: #dbcdbd;
-                      --accent: #c65d2e;
-                      --accent-soft: #f3d9cb;
-                      --ok: #2f7d4a;
-                      --warn: #b7791f;
-                    }
-                    * {
-                      box-sizing: border-box;
-                    }
-                    body {
-                      margin: 0;
-                      font-family: Georgia, \"Times New Roman\", serif;
-                      background:
-                        radial-gradient(circle at top left, #f8dcc4 0, transparent 28%),
-                        radial-gradient(circle at top right, #d9ead3 0, transparent 22%),
-                        linear-gradient(180deg, #f8f3ec 0%, var(--bg) 100%);
-                      color: var(--text);
-                    }
-                    .page {
-                      max-width: 1200px;
-                      margin: 0 auto;
-                      padding: 28px 20px 40px;
-                    }
-                    .hero {
-                      display: grid;
-                      grid-template-columns: 1.4fr 0.8fr;
-                      gap: 18px;
-                      align-items: stretch;
-                    }
-                    .panel {
-                      background: rgba(255, 253, 248, 0.92);
-                      border: 1px solid var(--line);
-                      border-radius: 20px;
-                      box-shadow: 0 10px 30px rgba(70, 48, 30, 0.08);
-                    }
-                    .hero-main {
-                      padding: 26px;
-                    }
-                    .eyebrow {
-                      text-transform: uppercase;
-                      letter-spacing: 0.18em;
-                      font-size: 12px;
-                      color: var(--accent);
-                      margin-bottom: 10px;
-                    }
-                    h1 {
-                      margin: 0;
-                      font-size: clamp(34px, 5vw, 56px);
-                      line-height: 0.95;
-                    }
-                    .subtitle {
-                      margin-top: 14px;
-                      color: var(--muted);
-                      font-size: 18px;
-                      line-height: 1.5;
-                      max-width: 52ch;
-                    }
-                    .hero-side {
-                      padding: 22px;
-                      display: flex;
-                      flex-direction: column;
-                      gap: 14px;
-                      justify-content: space-between;
-                      background: linear-gradient(180deg, var(--panel) 0%, var(--panel-strong) 100%);
-                    }
-                    .stamp {
-                      display: inline-flex;
-                      align-items: center;
-                      gap: 8px;
-                      padding: 8px 12px;
-                      border-radius: 999px;
-                      background: var(--accent-soft);
-                      color: var(--accent);
-                      font-size: 13px;
-                      width: fit-content;
-                    }
-                    .mini-grid {
-                      display: grid;
-                      grid-template-columns: repeat(2, minmax(0, 1fr));
-                      gap: 14px;
-                      margin-top: 18px;
-                    }
-                    .card {
-                      padding: 18px;
-                    }
-                    .label {
-                      font-size: 12px;
-                      text-transform: uppercase;
-                      letter-spacing: 0.12em;
-                      color: var(--muted);
-                      margin-bottom: 10px;
-                    }
-                    .value {
-                      font-size: 20px;
-                      line-height: 1.35;
-                      word-break: break-word;
-                    }
-                    .chips {
-                      display: flex;
-                      flex-wrap: wrap;
-                      gap: 10px;
-                      margin-top: 10px;
-                    }
-                    .chip {
-                      padding: 8px 12px;
-                      border-radius: 999px;
-                      background: #efe4d7;
-                      font-size: 13px;
-                      color: #5e5146;
-                    }
-                    .chip.ok {
-                      background: #dcefdc;
-                      color: var(--ok);
-                    }
-                    .chip.off {
-                      background: #efe3d4;
-                      color: var(--warn);
-                    }
-                    .section {
-                      margin-top: 18px;
-                      display: grid;
-                      grid-template-columns: 1fr 1fr;
-                      gap: 18px;
-                    }
-                    .section .panel {
-                      padding: 20px;
-                    }
-                    .section-title {
-                      display: flex;
-                      justify-content: space-between;
-                      align-items: center;
-                      gap: 10px;
-                      margin-bottom: 16px;
-                    }
-                    h2 {
-                      margin: 0;
-                      font-size: 24px;
-                    }
-                    .muted {
-                      color: var(--muted);
-                      font-size: 14px;
-                    }
-                    .timeline {
-                      display: flex;
-                      flex-direction: column;
-                      gap: 12px;
-                      max-height: 520px;
-                      overflow: auto;
-                      padding-right: 6px;
-                    }
-                    .timeline-item {
-                      border: 1px solid var(--line);
-                      border-radius: 16px;
-                      padding: 14px;
-                      background: #fffaf3;
-                    }
-                    .timeline-meta {
-                      display: flex;
-                      justify-content: space-between;
-                      gap: 12px;
-                      font-size: 12px;
-                      color: var(--muted);
-                      margin-bottom: 8px;
-                      text-transform: uppercase;
-                      letter-spacing: 0.08em;
-                    }
-                    .timeline-text {
-                      line-height: 1.45;
-                      white-space: pre-wrap;
-                      word-break: break-word;
-                    }
-                    .action-row {
-                      display: flex;
-                      gap: 10px;
-                      flex-wrap: wrap;
-                    }
-                    button {
-                      border: 0;
-                      border-radius: 12px;
-                      padding: 12px 16px;
-                      background: var(--accent);
-                      color: white;
-                      font: inherit;
-                      cursor: pointer;
-                    }
-                    button.secondary {
-                      background: #706256;
-                    }
-                    .footer-note {
-                      margin-top: 18px;
-                      font-size: 13px;
-                      color: var(--muted);
-                    }
-                    .live-grid {
-                      margin-top: 18px;
-                      display: grid;
-                      grid-template-columns: repeat(2, minmax(0, 1fr));
-                      gap: 18px;
-                    }
-                    .live-grid .panel {
-                      padding: 20px;
-                    }
-                    .live-list {
-                      display: flex;
-                      flex-direction: column;
-                      gap: 10px;
-                      max-height: 360px;
-                      overflow: auto;
-                      padding-right: 6px;
-                    }
-                    .live-item {
-                      border: 1px solid var(--line);
-                      border-radius: 14px;
-                      padding: 12px 14px;
-                      background: #fffaf3;
-                    }
-                    .live-item strong {
-                      display: inline-block;
-                      margin-bottom: 6px;
-                    }
-                    .live-meta {
-                      display: flex;
-                      flex-wrap: wrap;
-                      gap: 8px;
-                      margin-top: 8px;
-                    }
-                    .live-pill {
-                      border-radius: 999px;
-                      background: #efe4d7;
-                      color: #5e5146;
-                      padding: 4px 9px;
-                      font-size: 12px;
-                    }
-                    .summary-grid {
-                      display: grid;
-                      grid-template-columns: repeat(4, minmax(0, 1fr));
-                      gap: 12px;
-                    }
-                    .summary-box {
-                      border: 1px solid var(--line);
-                      border-radius: 14px;
-                      padding: 14px;
-                      background: #fffaf3;
-                    }
-                    .summary-number {
-                      font-size: 28px;
-                      line-height: 1;
-                      margin-bottom: 6px;
-                    }
-                    .mono {
-                      font-family: \"Courier New\", Courier, monospace;
-                      font-size: 13px;
-                    }
-                    .empty-state {
-                      border: 1px dashed var(--line);
-                      border-radius: 14px;
-                      padding: 16px;
-                      color: var(--muted);
-                      background: #fffcf7;
-                    }
-                    @media (max-width: 920px) {
-                      .hero,
-                      .section,
-                      .live-grid {
-                        grid-template-columns: 1fr;
-                      }
-                      .mini-grid {
-                        grid-template-columns: 1fr;
-                      }
-                      .summary-grid {
-                        grid-template-columns: 1fr 1fr;
-                      }
-                    }
-                  </style>
-                </head>
-                <body>
-                  <div class=\"page\">
-                    <section class=\"hero\">
-                      <div class=\"panel hero-main\">
-                        <div class=\"eyebrow\">Reactive Trading Dashboard</div>
-                        <h1>Vision claire de la démo Offworld</h1>
-                        <div class=\"subtitle\">Cette page suit l'activité marché, trading, webhooks et logistique en quasi temps réel pour éviter de lire du JSON brut pendant la démonstration.</div>
-                        <div class=\"mini-grid\">
-                          <div class=\"panel card\">
-                            <div class=\"label\">Dernière action trading</div>
-                            <div id=\"lastTradeAction\" class=\"value\">Chargement...</div>
-                          </div>
-                          <div class=\"panel card\">
-                            <div class=\"label\">Dernier webhook</div>
-                            <div id=\"lastWebhook\" class=\"value\">Chargement...</div>
-                          </div>
-                          <div class=\"panel card\">
-                            <div class=\"label\">Dernière action logistique</div>
-                            <div id=\"lastLogisticsAction\" class=\"value\">Chargement...</div>
-                          </div>
-                          <div class=\"panel card\">
-                            <div class=\"label\">Dernière activité réseau</div>
-                            <div id=\"lastHttpRequest\" class=\"value\">Chargement...</div>
-                          </div>
-                        </div>
-                      </div>
-                      <aside class=\"panel hero-side\">
-                        <div>
-                          <div class=\"stamp\">Auto refresh toutes les 2 secondes</div>
-                          <div style=\"margin-top:14px\" class=\"label\">Dernière mise à jour</div>
-                          <div id=\"lastUpdateTime\" class=\"value\">Chargement...</div>
-                          <div class=\"chips\" id=\"flags\"></div>
-                        </div>
-                        <div>
-                          <div class=\"action-row\">
-                            <button type=\"button\" id=\"refreshButton\">Rafraîchir maintenant</button>
-                            <button type=\"button\" id=\"launchLogisticsButton\" class=\"secondary\">Lancer logistique</button>
-                          </div>
-                          <div id=\"actionMessage\" class=\"footer-note\"></div>
-                        </div>
-                      </aside>
-                    </section>
+            <!DOCTYPE html>
+            <html lang="fr">
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Station Control</title>
+              <style>
+                :root {
+                  --bg: #07101d;
+                  --panel: #121b28;
+                  --panel2: #162233;
+                  --border: #27374d;
+                  --text: #e7edf5;
+                  --muted: #98a7ba;
+                  --green: #39d353;
+                  --blue: #58a6ff;
+                  --gold: #f0b232;
+                  --orange: #f59e0b;
+                }
 
-                    <section class=\"section\">
-                      <div class=\"panel\">
-                        <div class=\"section-title\">
-                          <h2>Configuration active</h2>
-                          <div class=\"muted\">Pour l'oral et la démo</div>
-                        </div>
-                        <div class=\"mini-grid\">
-                          <div class=\"card\">
-                            <div class=\"label\">Serveur Offworld</div>
-                            <div id=\"baseUrl\" class=\"value\"></div>
-                          </div>
-                          <div class=\"card\">
-                            <div class=\"label\">Player</div>
-                            <div id=\"playerId\" class=\"value\"></div>
-                          </div>
-                          <div class=\"card\">
-                            <div class=\"label\">Callback</div>
-                            <div id=\"callbackUrl\" class=\"value\"></div>
-                          </div>
-                          <div class=\"card\">
-                            <div class=\"label\">Dernière réponse HTTP</div>
-                            <div id=\"lastHttpResponse\" class=\"value\"></div>
-                          </div>
-                          <div class=\"card\">
-                            <div class=\"label\">Dernière action ship</div>
-                            <div id=\"lastShipAction\" class=\"value\"></div>
-                          </div>
-                        </div>
-                      </div>
+                * { box-sizing: border-box; }
 
-                      <div class=\"panel\">
-                        <div class=\"section-title\">
-                          <h2>Timeline des événements</h2>
-                          <div class=\"muted\">40 derniers événements en mémoire</div>
-                        </div>
-                        <div id=\"timeline\" class=\"timeline\"></div>
-                      </div>
-                    </section>
+                body {
+                  margin: 0;
+                  background: linear-gradient(180deg, #060c16 0%, #07101d 100%);
+                  color: var(--text);
+                  font-family: Arial, sans-serif;
+                }
 
-                    <section class=\"live-grid\">
-                      <div class=\"panel\">
-                        <div class=\"section-title\">
-                          <h2>Simulation live</h2>
-                          <div class=\"muted\">Snapshot backend toutes les 2 secondes</div>
-                        </div>
-                        <div class=\"summary-grid\" id=\"simulationSummary\"></div>
-                        <div class=\"footer-note mono\" id=\"simulationUpdatedAt\">Mise à jour simulation: -</div>
-                      </div>
+                .container {
+                  padding: 18px;
+                }
 
-                      <div class=\"panel\">
-                        <div class=\"section-title\">
-                          <h2>Evenements live</h2>
-                          <div class=\"muted\">Flux SSE avec messages simples</div>
-                        </div>
-                        <div id=\"eventsList\" class=\"live-list\"></div>
-                      </div>
+                .topbar {
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  margin-bottom: 14px;
+                  padding-bottom: 10px;
+                  border-bottom: 1px solid var(--border);
+                }
 
-                      <div class=\"panel\">
-                        <div class=\"section-title\">
-                          <h2>Marché</h2>
-                          <div class=\"muted\">Prix, spread, profondeur visible</div>
-                        </div>
-                        <div id=\"marketList\" class=\"live-list\"></div>
-                      </div>
+                .title {
+                  font-size: 32px;
+                  font-weight: bold;
+                  color: var(--blue);
+                  letter-spacing: 2px;
+                }
 
-                      <div class=\"panel\">
-                        <div class=\"section-title\">
-                          <h2>Ordres actifs</h2>
-                          <div class=\"muted\">Création, suivi, clôture</div>
-                        </div>
-                        <div id=\"ordersList\" class=\"live-list\"></div>
-                      </div>
+                .subtitle {
+                  margin-top: 4px;
+                  color: var(--text);
+                  font-size: 18px;
+                }
 
-                      <div class=\"panel\">
-                        <div class=\"section-title\">
-                          <h2>Vaisseaux</h2>
-                          <div class=\"muted\">Départ, trajet, arrivée</div>
-                        </div>
-                        <div id=\"shipsList\" class=\"live-list\"></div>
-                      </div>
+                .credits {
+                  font-size: 28px;
+                  color: var(--gold);
+                  font-weight: bold;
+                }
 
-                      <div class=\"panel\">
-                        <div class=\"section-title\">
-                          <h2>Planètes et ressources</h2>
-                          <div class=\"muted\">Inventaires observés côté station</div>
-                        </div>
-                        <div id=\"planetsList\" class=\"live-list\"></div>
-                      </div>
+                .grid {
+                  display: grid;
+                  grid-template-columns: repeat(12, 1fr);
+                  gap: 16px;
+                  align-items: start;
+                }
 
-                      <div class=\"panel\">
-                        <div class=\"section-title\">
-                          <h2>Trades récents</h2>
-                          <div class=\"muted\">Derniers échanges captés en direct</div>
-                        </div>
-                        <div id=\"tradesList\" class=\"live-list\"></div>
-                      </div>
-                    </section>
+                .card {
+                  background: linear-gradient(180deg, rgba(22,34,51,.95), rgba(18,27,40,.95));
+                  border: 1px solid var(--border);
+                  border-radius: 14px;
+                  padding: 18px;
+                  box-shadow: 0 8px 24px rgba(0,0,0,.3);
+                  min-height: 260px;
+                  overflow: hidden;
+                }
+
+                .span-3 { grid-column: span 3; }
+                .span-4 { grid-column: span 4; }
+                .span-6 { grid-column: span 6; }
+                .span-8 { grid-column: span 8; }
+                .span-12 { grid-column: span 12; }
+
+                @media (max-width: 1400px) {
+                  .span-8, .span-6, .span-4, .span-3 { grid-column: span 6; }
+                }
+
+                @media (max-width: 900px) {
+                  .span-8, .span-6, .span-4, .span-3, .span-12 { grid-column: span 12; }
+                }
+
+                .card h2 {
+                  margin: 0 0 12px 0;
+                  font-size: 22px;
+                  color: var(--green);
+                }
+
+                .card-body-scroll {
+                  max-height: 420px;
+                  overflow-y: auto;
+                  overflow-x: auto;
+                  padding-right: 6px;
+                }
+
+                .row {
+                  display: flex;
+                  justify-content: space-between;
+                  gap: 12px;
+                  padding: 9px 0;
+                  border-bottom: 1px solid rgba(255,255,255,0.06);
+                }
+
+                .muted { color: var(--muted); }
+
+                .badge {
+                  display: inline-block;
+                  padding: 4px 8px;
+                  border-radius: 999px;
+                  background: #2b4f7a;
+                  color: #d9ecff;
+                  font-size: 12px;
+                }
+
+                .badge-orange {
+                  background: rgba(245, 158, 11, 0.18);
+                  color: #ffd89c;
+                }
+
+                .badge-green {
+                  background: rgba(57, 211, 83, 0.18);
+                  color: #aaf0b6;
+                }
+
+                .badge-red {
+                  background: rgba(239, 68, 68, 0.18);
+                  color: #ffb0b0;
+                }
+
+                table {
+                  width: 100%;
+                  border-collapse: collapse;
+                  font-size: 14px;
+                }
+
+                th, td {
+                  padding: 8px 6px;
+                  text-align: left;
+                  border-bottom: 1px solid rgba(255,255,255,0.06);
+                  vertical-align: top;
+                }
+
+                th {
+                  color: var(--muted);
+                }
+
+                .small { font-size: 13px; }
+                .mono { font-family: monospace; }
+
+                .section-note {
+                  color: var(--muted);
+                  font-size: 13px;
+                  margin-top: -4px;
+                  margin-bottom: 10px;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="topbar">
+                  <div>
+                    <div class="title">🚀 STATION CONTROL</div>
+                    <div id="connectedAs" class="subtitle">Connecté en tant que : -</div>
+                  </div>
+                  <div id="statusRight" class="credits">Dashboard</div>
+                </div>
+
+                <div class="grid">
+                  <div class="card span-4">
+                    <h2>📍 Où on se situe</h2>
+                    <div id="position"></div>
                   </div>
 
-                  <script>
-                    const ids = [
-                      "baseUrl",
-                      "playerId",
-                      "callbackUrl",
-                      "lastHttpRequest",
-                      "lastHttpResponse",
-                      "lastWebhook",
-                      "lastShipAction",
-                      "lastLogisticsAction",
-                      "lastTradeAction",
-                      "lastUpdateTime"
-                    ];
-                    let simulationEventSource = null;
-                    let simulationReconnectTimer = null;
+                  <div class="card span-4">
+                    <h2>🏭 Entrepôt de surface</h2>
+                    <div class="section-note">Stock de la planète de surface configurée</div>
+                    <div id="surfaceStock"></div>
+                  </div>
 
-                    function setText(id, value) {
-                      const element = document.getElementById(id);
-                      if (element == null) {
-                        return;
-                      }
-                      element.textContent = value == null ? "-" : String(value);
-                    }
+                  <div class="card span-4">
+                    <h2>🌍 Ressources globales</h2>
+                    <div class="section-note">Total connu sur toutes les planètes suivies</div>
+                    <div id="globalResources"></div>
+                  </div>
 
-                    function formatFlag(label, enabled) {
-                      const status = enabled ? "ok" : "off";
-                      const text = enabled ? "actif" : "off";
-                      return '<div class="chip ' + status + '">' + label + ' · ' + text + '</div>';
-                    }
+                  <div class="card span-4">
+                    <h2>🛗 Ascenseur local</h2>
+                    <div class="section-note">Station orbitale ↔ planète, distinct des ships spatiaux</div>
+                    <div id="elevator"></div>
+                  </div>
 
-                    function renderFlags(data) {
-                      const flags = document.getElementById("flags");
-                      if (flags == null) {
-                        return;
-                      }
-                      flags.innerHTML = [
-                        formatFlag("Market SSE", data.marketEnabled),
-                        formatFlag("Trading", data.tradingEnabled),
-                        formatFlag("Logistics", data.logisticsEnabled),
-                        formatFlag("Orders", data.orderManagementEnabled)
-                      ].join("");
-                    }
+                  <div class="card span-4">
+                    <h2>📦 Inventaire orbital</h2>
+                    <div class="section-note">Cargo actuellement vu dans le trafic spatial</div>
+                    <div id="orbitalStock"></div>
+                  </div>
 
-                    function renderTimeline(state) {
-                      const timeline = document.getElementById("timeline");
-                      if (timeline == null) {
-                        return;
-                      }
-                      const events = Array.isArray(state.recentEvents) ? state.recentEvents : [];
-                      if (events.length === 0) {
-                        timeline.innerHTML = '<div class="timeline-item"><div class="timeline-text">Aucun événement enregistré pour le moment.</div></div>';
-                        return;
-                      }
-                      timeline.innerHTML = events.map(event => {
-                        const time = event.time == null ? "-" : event.time;
-                        const channel = event.channel == null ? "event" : event.channel;
-                        const value = event.value == null ? "-" : event.value;
-                        return '<div class="timeline-item">'
-                          + '<div class="timeline-meta"><span>' + channel + '</span><span>' + time + '</span></div>'
-                          + '<div class="timeline-text">' + value + '</div>'
-                          + '</div>';
-                      }).join("");
-                    }
+                  <div class="card span-4">
+                    <h2>🧠 IA Trading Bot</h2>
+                    <div id="botStatus"></div>
+                  </div>
 
-                    function escapeHtml(value) {
-                      return String(value ?? "-")
-                        .replaceAll("&", "&amp;")
-                        .replaceAll("<", "&lt;")
-                        .replaceAll(">", "&gt;")
-                        .replaceAll('"', "&quot;")
-                        .replaceAll("'", "&#39;");
-                    }
+                  <div class="card span-12">
+                    <h2>🛸 Ships interplanétaires</h2>
+                    <div class="section-note">Uniquement les transports spatiaux entre planètes</div>
+                    <div class="card-body-scroll">
+                      <div id="spaceShips"></div>
+                    </div>
+                  </div>
 
-                    function renderEmpty(id, text) {
-                      const element = document.getElementById(id);
-                      if (element == null) {
-                        return;
-                      }
-                      element.innerHTML = '<div class="empty-state">' + escapeHtml(text) + '</div>';
-                    }
+                  <div class="card span-6">
+                    <h2>📄 Ordres actifs</h2>
+                    <div class="card-body-scroll">
+                      <div id="orders"></div>
+                    </div>
+                  </div>
 
-                    function entriesFromMap(value) {
-                      if (value == null || typeof value !== "object") {
-                        return [];
-                      }
-                      return Object.entries(value);
-                    }
+                  <div class="card span-6">
+                    <h2>💹 Trades récents</h2>
+                    <div class="card-body-scroll">
+                      <div id="trades"></div>
+                    </div>
+                  </div>
 
-                    function renderSimulationSummary(snapshot) {
-                      const summary = document.getElementById("simulationSummary");
-                      if (summary == null) {
-                        return;
-                      }
-                      const counts = snapshot.counts == null ? {} : snapshot.counts;
-                      const cards = [
-                        ["Planètes", counts.planets],
-                        ["Ordres", counts.activeOrders],
-                        ["Vaisseaux", counts.ships],
-                        ["Trades", counts.recentTrades]
-                      ];
-                      summary.innerHTML = cards.map(([label, value]) => {
-                        return '<div class="summary-box">'
-                          + '<div class="summary-number">' + escapeHtml(value ?? 0) + '</div>'
-                          + '<div class="muted">' + escapeHtml(label) + '</div>'
-                          + '</div>';
-                      }).join("");
-                      setText("simulationUpdatedAt", "Mise à jour simulation: " + (snapshot.updatedAt ?? "-"));
-                    }
+                  <div class="card span-12">
+                    <h2>🗺️ Cartographie galactique</h2>
+                    <div class="card-body-scroll">
+                      <div id="planets"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-                    function renderEvents(snapshot) {
-                      const eventsList = document.getElementById("eventsList");
-                      if (eventsList == null) {
-                        return;
-                      }
-                      const events = Array.isArray(snapshot.recentEvents) ? snapshot.recentEvents.slice(0, 12) : [];
-                      if (events.length === 0) {
-                        renderEmpty("eventsList", "Aucun événement live pour le moment.");
-                        return;
-                      }
-                      eventsList.innerHTML = events.map(item => {
-                        return '<div class="live-item">'
-                          + '<strong>' + escapeHtml(item.message) + '</strong>'
-                          + '<div class="live-meta">'
-                          + '<span class="live-pill">' + escapeHtml(item.type) + '</span>'
-                          + '<span class="live-pill">' + escapeHtml(item.recordedAt) + '</span>'
-                          + '</div>'
-                          + '</div>';
-                      }).join("");
-                    }
+              <script>
+                function esc(v) {
+                  return String(v ?? "-")
+                    .replaceAll("&", "&amp;")
+                    .replaceAll("<", "&lt;")
+                    .replaceAll(">", "&gt;")
+                    .replaceAll('"', "&quot;")
+                    .replaceAll("'", "&#39;");
+                }
 
-                    function renderSimulationSnapshot(snapshot) {
-                      renderSimulationSummary(snapshot);
-                      renderEvents(snapshot);
-                      renderMarket(snapshot);
-                      renderOrders(snapshot);
-                      renderShips(snapshot);
-                      renderPlanets(snapshot);
-                      renderTrades(snapshot);
-                    }
+                function renderKeyValues(targetId, data) {
+                  const el = document.getElementById(targetId);
+                  const entries = Object.entries(data || {});
+                  if (!entries.length) {
+                    el.innerHTML = "<div class='muted'>Aucune donnée</div>";
+                    return;
+                  }
 
-                    function renderMarket(snapshot) {
-                      const entries = entriesFromMap(snapshot.marketPrices || snapshot.market)
-                        .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
-                        .slice(0, 8);
-                      if (entries.length === 0) {
-                        renderEmpty("marketList", "Aucune donnée marché pour le moment.");
-                        return;
-                      }
-                      document.getElementById("marketList").innerHTML = entries.map(([goodName, item]) => {
-                        return '<div class="live-item">'
-                          + '<strong>' + escapeHtml(goodName) + '</strong>'
-                          + '<div class="mono">last=' + escapeHtml(item.lastPrice) + ' bid=' + escapeHtml(item.bestBid) + ' ask=' + escapeHtml(item.bestAsk) + ' spread=' + escapeHtml(item.spread) + '</div>'
-                          + '<div class="live-meta">'
-                          + '<span class="live-pill">source ' + escapeHtml(item.source) + '</span>'
-                          + '<span class="live-pill">maj ' + escapeHtml(item.updatedAt) + '</span>'
-                          + '</div>'
-                          + '</div>';
-                      }).join("");
-                    }
+                  el.innerHTML = entries.map(([k, v]) => `
+                    <div class="row">
+                      <div>${esc(k).toUpperCase()}</div>
+                      <div>${esc(v)}</div>
+                    </div>
+                  `).join("");
+                }
 
-                    function renderOrders(snapshot) {
-                      const entries = entriesFromMap(snapshot.activeOrders || snapshot.orders)
-                        .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
-                        .slice(0, 8);
-                      if (entries.length === 0) {
-                        renderEmpty("ordersList", "Aucun ordre actif.");
-                        return;
-                      }
-                      document.getElementById("ordersList").innerHTML = entries.map(([orderId, item]) => {
-                        return '<div class="live-item">'
-                          + '<strong>' + escapeHtml(orderId) + '</strong>'
-                          + '<div>' + escapeHtml(item.side) + ' ' + escapeHtml(item.goodName) + ' @ ' + escapeHtml(item.price) + '</div>'
-                          + '<div class="mono">qty=' + escapeHtml(item.quantity) + ' filled=' + escapeHtml(item.filledQuantity) + ' status=' + escapeHtml(item.status) + '</div>'
-                          + '<div class="live-meta">'
-                          + '<span class="live-pill">' + escapeHtml(item.orderType) + '</span>'
-                          + '<span class="live-pill">' + escapeHtml(item.stationPlanetId) + '</span>'
-                          + '<span class="live-pill">' + escapeHtml(item.source) + '</span>'
-                          + '</div>'
-                          + '</div>';
-                      }).join("");
-                    }
+                function badgeForStatus(status) {
+                  const s = String(status || "").toLowerCase();
+                  if (s.includes("ready")) return "badge badge-green";
+                  if (s.includes("partial")) return "badge badge-orange";
+                  if (s.includes("disabled") || s.includes("waiting")) return "badge badge-red";
+                  return "badge";
+                }
 
-                    function renderShips(snapshot) {
-                      const entries = entriesFromMap(snapshot.ships)
-                        .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
-                        .slice(0, 8);
-                      if (entries.length === 0) {
-                        renderEmpty("shipsList", "Aucun vaisseau observé.");
-                        return;
-                      }
-                      document.getElementById("shipsList").innerHTML = entries.map(([shipId, item]) => {
-                        const cargo = entriesFromMap(item.cargo).map(([goodName, qty]) => goodName + ':' + qty).join(', ');
-                        return '<div class="live-item">'
-                          + '<strong>' + escapeHtml(shipId) + '</strong>'
-                          + '<div>' + escapeHtml(item.originPlanetId) + ' → ' + escapeHtml(item.destinationPlanetId) + '</div>'
-                          + '<div class="mono">status=' + escapeHtml(item.status) + ' cargo=' + escapeHtml(cargo || '-') + '</div>'
-                          + '<div class="live-meta">'
-                          + '<span class="live-pill">' + escapeHtml(item.truckingId) + '</span>'
-                          + '<span class="live-pill">' + escapeHtml(item.source) + '</span>'
-                          + '</div>'
-                          + '</div>';
-                      }).join("");
-                    }
+                function renderPosition(data) {
+                  const el = document.getElementById("position");
+                  el.innerHTML = `
+                    <div class="row"><div>Player</div><div>${esc(data.playerId)}</div></div>
+                    <div class="row"><div>Base URL</div><div class="mono">${esc(data.baseUrl)}</div></div>
+                    <div class="row"><div>Station system</div><div>${esc(data.stationSystemName)}</div></div>
+                    <div class="row"><div>Station trading</div><div>${esc(data.tradingStationPlanetId)}</div></div>
+                    <div class="row"><div>Système origine</div><div>${esc(data.originSystemName)}</div></div>
+                    <div class="row"><div>Planète origine</div><div>${esc(data.originPlanetId)}</div></div>
+                    <div class="row"><div>Système destination</div><div>${esc(data.destinationSystemName)}</div></div>
+                    <div class="row"><div>Planète destination</div><div>${esc(data.destinationPlanetId)}</div></div>
+                    <div class="row"><div>Logistique</div><div>${esc(data.logisticsEnabled)}</div></div>
+                  `;
+                }
 
-                    function renderPlanets(snapshot) {
-                      const entries = entriesFromMap(snapshot.planets)
-                        .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
-                        .slice(0, 8);
-                      if (entries.length === 0) {
-                        renderEmpty("planetsList", "Aucune planète observée.");
-                        return;
-                      }
-                      document.getElementById("planetsList").innerHTML = entries.map(([planetId, item]) => {
-                        const inventory = entriesFromMap(item.inventory).slice(0, 4)
-                          .map(([goodName, qty]) => goodName + ':' + qty)
-                          .join(', ');
-                        return '<div class="live-item">'
-                          + '<strong>' + escapeHtml(item.displayName || planetId) + '</strong>'
-                          + '<div class="mono">' + escapeHtml(planetId) + ' · système=' + escapeHtml(item.systemName) + '</div>'
-                          + '<div>Stock: ' + escapeHtml(inventory || 'vide') + '</div>'
-                          + '<div class="live-meta">'
-                          + '<span class="live-pill">' + escapeHtml(item.source) + '</span>'
-                          + '<span class="live-pill">' + escapeHtml(item.updatedAt) + '</span>'
-                          + '</div>'
-                          + '</div>';
-                      }).join("");
-                    }
+                function renderElevator(data) {
+                  const el = document.getElementById("elevator");
+                  el.innerHTML = `
+                    <div class="row"><div>Type</div><div><span class="badge">${esc(data.type)}</span></div></div>
+                    <div class="row"><div>Direction</div><div>${esc(data.direction)}</div></div>
+                    <div class="row"><div>Planète surface</div><div>${esc(data.surfacePlanetId)}</div></div>
+                    <div class="row"><div>Noeud orbital</div><div>${esc(data.orbitalNode)}</div></div>
+                    <div class="row"><div>Ressource</div><div><span class="badge">${esc(data.goodName)}</span></div></div>
+                    <div class="row"><div>Demandé</div><div>${esc(data.requestedQuantity)}</div></div>
+                    <div class="row"><div>Disponible au sol</div><div>${esc(data.availableSurfaceStock)}</div></div>
+                    <div class="row"><div>Chargeable maintenant</div><div>${esc(data.loadableNow)}</div></div>
+                    <div class="row"><div>Statut</div><div><span class="${badgeForStatus(data.status)}">${esc(data.status)}</span></div></div>
+                  `;
+                }
 
-                    function renderTrades(snapshot) {
-                      const trades = Array.isArray(snapshot.recentTrades) ? snapshot.recentTrades.slice(0, 10) : [];
-                      if (trades.length === 0) {
-                        renderEmpty("tradesList", "Aucun trade récent.");
-                        return;
-                      }
-                      document.getElementById("tradesList").innerHTML = trades.map(item => {
-                        return '<div class="live-item">'
-                          + '<strong>' + escapeHtml(item.goodName) + '</strong>'
-                          + '<div class="mono">price=' + escapeHtml(item.price) + ' qty=' + escapeHtml(item.quantity) + '</div>'
-                          + '<div>' + escapeHtml(item.buyerStation) + ' ←→ ' + escapeHtml(item.sellerStation) + '</div>'
-                          + '<div class="live-meta">'
-                          + '<span class="live-pill">' + escapeHtml(item.source) + '</span>'
-                          + '<span class="live-pill">' + escapeHtml(item.recordedAt || item.updatedAt) + '</span>'
-                          + '</div>'
-                          + '</div>';
-                      }).join("");
-                    }
+                function renderBotStatus(data) {
+                  const el = document.getElementById("botStatus");
+                  el.innerHTML = `
+                    <div class="row"><div>Dernière action</div><div>${esc(data.lastAction)}</div></div>
+                    <div class="row"><div>Ordres actifs</div><div>${esc(data.activeOrders)}</div></div>
+                    <div class="row"><div>Marchés suivis</div><div>${esc(data.trackedMarkets)}</div></div>
+                    <div class="row"><div>Ships spatiaux</div><div>${esc(data.activeSpaceShips)}</div></div>
+                    <div class="row"><div>Meilleure opportunité</div><div>${esc(data.bestOpportunity)}</div></div>
+                  `;
+                }
 
-                    async function loadSimulationState() {
-                      const response = await fetch("/state", { cache: "no-store" });
-                      if (response.ok == false) {
-                        throw new Error("State HTTP " + response.status);
-                      }
-                      const snapshot = await response.json();
-                      renderSimulationSnapshot(snapshot);
-                    }
+                function renderSpaceShips(data) {
+                  const ships = Object.values(data || {});
+                  const el = document.getElementById("spaceShips");
 
-                    function connectSimulationStream() {
-                      if (typeof EventSource === "undefined") {
-                        return;
-                      }
-                      if (simulationEventSource != null) {
-                        simulationEventSource.close();
-                      }
-                      simulationEventSource = new EventSource("/stream/state");
-                      simulationEventSource.onmessage = event => {
-                        try {
-                          const snapshot = JSON.parse(event.data);
-                          renderSimulationSnapshot(snapshot);
-                        } catch (error) {
-                          console.error("Erreur SSE simulation", error);
-                        }
-                      };
-                      simulationEventSource.onerror = () => {
-                        const message = document.getElementById("actionMessage");
-                        if (message != null) {
-                          message.textContent = "Flux live interrompu, reconnexion...";
-                        }
-                        simulationEventSource.close();
-                        simulationEventSource = null;
-                        if (simulationReconnectTimer != null) {
-                          window.clearTimeout(simulationReconnectTimer);
-                        }
-                        simulationReconnectTimer = window.setTimeout(connectSimulationStream, 2000);
-                      };
-                    }
+                  if (!ships.length) {
+                    el.innerHTML = "<div class='muted'>Aucun ship interplanétaire observé.</div>";
+                    return;
+                  }
 
-                    async function loadStatus() {
-                      const response = await fetch("/debug/status", { cache: "no-store" });
-                      if (response.ok == false) {
-                        throw new Error("Status HTTP " + response.status);
-                      }
-                      const data = await response.json();
-                      const state = data.state == null ? {} : data.state;
+                  el.innerHTML = `
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Ship</th>
+                          <th>De</th>
+                          <th>Vers</th>
+                          <th>Status</th>
+                          <th>Cargo</th>
+                          <th>Maj</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${ships.map(s => `
+                          <tr>
+                            <td class="mono">${esc(s.shipId)}</td>
+                            <td>${esc(s.originPlanetId)}</td>
+                            <td>${esc(s.destinationPlanetId)}</td>
+                            <td>${esc(s.status)}</td>
+                            <td class="small mono">${esc(JSON.stringify(s.cargo || {}))}</td>
+                            <td class="small">${esc(s.updatedAt)}</td>
+                          </tr>
+                        `).join("")}
+                      </tbody>
+                    </table>
+                  `;
+                }
 
-                      setText("baseUrl", data.baseUrl);
-                      setText("playerId", data.playerId);
-                      setText("callbackUrl", data.callbackUrl);
-                      ids.slice(3).forEach(id => setText(id, state[id]));
-                      renderFlags(data);
-                      renderTimeline(state);
-                    }
+                function renderOrders(data) {
+                  const orders = Object.values(data || {});
+                  const el = document.getElementById("orders");
 
-                    async function launchLogistics() {
-                      const message = document.getElementById("actionMessage");
-                      if (message != null) {
-                        message.textContent = "Lancement logistique en cours...";
-                      }
-                      const response = await fetch("/debug/logistics/launch", { method: "POST" });
-                      const text = await response.text();
-                      if (message != null) {
-                        message.textContent = text;
-                      }
-                      await refresh();
-                    }
+                  if (!orders.length) {
+                    el.innerHTML = "<div class='muted'>Aucun ordre actif.</div>";
+                    return;
+                  }
 
-                    async function refresh() {
-                      try {
-                        await Promise.all([loadStatus(), loadSimulationState()]);
-                      } catch (error) {
-                        const message = document.getElementById("actionMessage");
-                        if (message != null) {
-                          message.textContent = "Erreur de chargement: " + error.message;
-                        }
-                      }
-                    }
+                  el.innerHTML = `
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Good</th>
+                          <th>Side</th>
+                          <th>Prix</th>
+                          <th>Qté</th>
+                          <th>Filled</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${orders.map(o => `
+                          <tr>
+                            <td class="mono">${esc(o.orderId)}</td>
+                            <td>${esc(o.goodName)}</td>
+                            <td>${esc(o.side)}</td>
+                            <td>${esc(o.price)}</td>
+                            <td>${esc(o.quantity)}</td>
+                            <td>${esc(o.filledQuantity)}</td>
+                            <td>${esc(o.status)}</td>
+                          </tr>
+                        `).join("")}
+                      </tbody>
+                    </table>
+                  `;
+                }
 
-                    document.getElementById("refreshButton").addEventListener("click", refresh);
-                    document.getElementById("launchLogisticsButton").addEventListener("click", () => {
-                      launchLogistics().catch(error => {
-                        const message = document.getElementById("actionMessage");
-                        if (message != null) {
-                          message.textContent = "Erreur logistique: " + error.message;
-                        }
-                      });
-                    });
+                function renderPlanets(data) {
+                  const planets = Object.values(data || {});
+                  const el = document.getElementById("planets");
 
-                    refresh();
-                    connectSimulationStream();
-                    window.setInterval(refresh, 5000);
-                  </script>
-                </body>
-                </html>
-                """;
-    }
+                  if (!planets.length) {
+                    el.innerHTML = "<div class='muted'>Aucune planète suivie.</div>";
+                    return;
+                  }
 
-    @GetMapping("/debug/status")
-    public Map<String, Object> status() {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("baseUrl", props.getBaseUrl());
-        result.put("playerId", props.getPlayerId());
-        result.put("callbackUrl", props.getCallbackUrl());
-        result.put("marketEnabled", props.getMarket().isEnabled());
-        result.put("tradingEnabled", props.getTrading().isEnabled());
-        result.put("logisticsEnabled", props.getLogistics().isEnabled());
-        result.put("orderManagementEnabled", props.getOrderManagement().isEnabled());
-        result.put("state", debugStateService.snapshot());
-        return result;
-    }
+                  el.innerHTML = planets.map(p => `
+                    <div class="row">
+                      <div>
+                        <strong>${esc(p.displayName)}</strong><br>
+                        <span class="muted small">${esc(p.systemName || "-")} · ${esc(p.planetId)}</span>
+                      </div>
+                      <div>${Object.keys(p.inventory || {}).length} ressources</div>
+                    </div>
+                  `).join("");
+                }
 
-    @PostMapping("/debug/logistics/launch")
-    public Mono<ResponseEntity<String>> launchLogistics() {
-        return logisticsService.forceLaunchNow()
-                .thenReturn(ResponseEntity.ok("Trucking launch triggered"));
-    }
+                function renderTrades(trades) {
+                  const el = document.getElementById("trades");
 
-    @GetMapping("/debug/ships")
-    public Map<String, Object> allShips() {
-        return debugShipService.getAllShips();
-    }
+                  if (!trades || !trades.length) {
+                    el.innerHTML = "<div class='muted'>Aucun trade récent.</div>";
+                    return;
+                  }
 
-    @GetMapping("/debug/ships/{shipId}")
-    public Map<String, Object> oneShip(@PathVariable String shipId) {
-        return debugShipService.getShip(shipId);
+                  el.innerHTML = `
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Ressource</th>
+                          <th>Prix</th>
+                          <th>Qté</th>
+                          <th>Acheteur</th>
+                          <th>Vendeur</th>
+                          <th>Temps</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${trades.slice(0, 20).map(t => `
+                          <tr>
+                            <td>${esc(t.goodName)}</td>
+                            <td>${esc(t.price)}</td>
+                            <td>${esc(t.quantity)}</td>
+                            <td>${esc(t.buyerStation || t.buyerId)}</td>
+                            <td>${esc(t.sellerStation || t.sellerId)}</td>
+                            <td class="small">${esc(t.recordedAt)}</td>
+                          </tr>
+                        `).join("")}
+                      </tbody>
+                    </table>
+                  `;
+                }
+
+                async function refresh() {
+                  const res = await fetch("/state");
+                  const state = await res.json();
+
+                  const position = state.position || {};
+                  const player = state.player || {};
+
+                  document.getElementById("connectedAs").textContent =
+                    "Connecté en tant que : " + (player.name || position.playerId || "-");
+
+                  document.getElementById("statusRight").textContent =
+                    player.credits != null ? player.credits + " cr" : "Dashboard";
+
+                  renderPosition(state.position || {});
+                  renderKeyValues("surfaceStock", state.surfaceStock || {});
+                  renderKeyValues("globalResources", state.globalResources || {});
+                  renderKeyValues("orbitalStock", state.orbitalInventory || {});
+                  renderElevator(state.elevatorOverview || {});
+                  renderBotStatus(state.botStatus || {});
+                  renderSpaceShips(state.spaceShips || {});
+                  renderOrders(state.activeOrders || {});
+                  renderTrades(state.recentTrades || []);
+                  renderPlanets(state.planets || {});
+                }
+
+                refresh();
+                setInterval(refresh, 2000);
+              </script>
+            </body>
+            </html>
+            """;
     }
 }
