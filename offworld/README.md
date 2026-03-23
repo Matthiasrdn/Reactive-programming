@@ -262,3 +262,36 @@ Après les curls :
 - argent mis à jour
 - dashboard dynamique
 - ascenseur actif si stock OK
+
+# Architecture du projet
+
+                        +----------------------+
+                        |   Front Dashboard    |
+                        |   DebugController    |
+                        +----------+-----------+
+                                   |
+                                   v
+                        +----------------------+
+                        |  State / Read Model  |
+                        | SimulationStateSvc   |
+                        +--+---------+---------+
+                           |         |        
+          +----------------+         +------------------+
+          v                                         v
++----------------------+                 +----------------------+
+| Sync Domain          |                 | Automation Domain    |
+| - PlayerSyncService  |                 | - TradingScanService |
+| - StateSyncService   |                 | - ShipAutomationSvc  |
++----------+-----------+                 | - LogisticsSvc       |
+           |                             +----------+-----------+
+           v                                        |
++---------------------------------------------------------------+
+|                  HTTP Clients / Integration                   |
+| PlayerClient | StationClient | ShippingClient | MarketClient  |
++-------------------------------+-------------------------------+
+                                |
+                                v
++---------------------------------------------------------------+
+|              Rust Game Server / Market Engine                 |
+|              offworld-trading-manager                         |
++---------------------------------------------------------------+
