@@ -266,38 +266,16 @@ Après les curls :
 # Architecture du projet
 
 
----
+```mermaid
+flowchart TD
 
-                        ________________________
-                        |   Front Dashboard    |
-                        |   DebugController    |
-                        ________________________
-                                   |
-                                   v
-                        _______________________
-                        |  State / Read Model  |
-                        | SimulationStateSvc   |
-                        ________________________
-                           |         |        
-         __________________          ________________
-          v                                         v
-________________________                _________________________
-| Sync Domain          |                 | Automation Domain    |
-| - PlayerSyncService  |                 | - TradingScanService |
-| - StateSyncService   |                 | - ShipAutomationSvc  |
-________________________               | - LogisticsSvc       |
-           |                            _________________________
-           v                                        |
-_________________________________________________________________
-|                  HTTP Clients / Integration                   |
-| PlayerClient | StationClient | ShippingClient | MarketClient  |
-_________________________________________________________________
-                                |
-                                v
-_________________________________________________________________
-|              Rust Game Server / Market Engine                 |
-|              offworld-trading-manager                         |
-_________________________________________________________________
+A[Front Dashboard<br/>DebugController]
+    --> B[State / Read Model<br/>SimulationStateSvc]
 
+B --> C[Sync Domain<br/>- PlayerSyncService<br/>- StateSyncService]
+B --> D[Automation Domain<br/>- TradingScanService<br/>- ShipAutomationSvc<br/>- LogisticsSvc]
 
----
+C --> E[HTTP Clients / Integration<br/>PlayerClient | StationClient | ShippingClient | MarketClient]
+D --> E
+
+E --> F[Rust Game Server / Market Engine<br/>offworld-trading-manager]
